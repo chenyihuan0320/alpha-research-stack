@@ -4,6 +4,30 @@
 
 本次完成：
 
+- 完成 AkShare 最小 provider 接入：`orchestrator/data/providers/akshare_provider.py`，支持 A 股 ticker、港股 ticker 映射，A 股日线、港股日线和 A 股估值样本函数。
+- 完成 AkShare probe 脚本：`scripts/probe_akshare.py`，生成 `outputs/reports/akshare_probe_report.md`，记录 success / failed / skipped、字段覆盖、quality_flags 和失败原因。
+- 完成 `docs/akshare_provider_notes.md`，记录 AkShare 使用目标、ticker mapping、接口名称、字段映射、风险和与 Tushare 交叉验证路径。
+- 完成 CI/pytest 加固：`pyproject.toml` 增加 `dev = ["pytest>=8"]`，GitHub Actions 安装 `.[dev]` 后运行 `make check`，`scripts/dev_check.sh` 在检测到测试但没有 pytest 时会失败。
+- 加强 provider probe 测试，并新增 AkShare ticker mapping 测试；测试不联网、不调用真实 AkShare。
+
+本次未做：
+
+- 未实现股票推荐。
+- 未实现候选评分。
+- 未实现回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 根据 AkShare probe 结果决定是否接入 Tushare 做 A 股交叉验证。
+
+## 2026-07-03
+
+本次完成：
+
 - 完成 `docs/data_contract.md`，定义 `security_master`、`daily_bar`、`fundamentals_snapshot`、`valuation_snapshot`、`event_record`、`candidate_evidence` 的最小数据契约。
 - 完成 `docs/provider_probe_plan.md`，记录 AkShare、Tushare、EdgarTools、OpenBB 和港股覆盖验证计划、ticker mapping 风险、凭证要求和替代方案。
 - 完成 dry-run provider probe 框架：`orchestrator/data/contracts.py`、`sample_universe.py`、`provider_probe.py` 和 `scripts/probe_data_sources.py`。

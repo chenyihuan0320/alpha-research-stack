@@ -44,4 +44,6 @@ def test_probe_result_can_convert_to_dict() -> None:
 
     assert data["provider"] == "AkShare"
     assert data["market"] == "HK"
-    assert data["required_fields"]
+    assert "date" in data["required_fields"]
+    assert "close" in data["required_fields"]
+    assert "volume" in data["required_fields"]

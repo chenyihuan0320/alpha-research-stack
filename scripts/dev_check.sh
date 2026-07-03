@@ -14,6 +14,7 @@ project_tree() {
     -path './.venv' -prune -o \
     -path '*/__pycache__' -prune -o \
     -path './.pytest_cache' -prune -o \
+    -path '*.egg-info' -prune -o \
     -path './outputs/dev_checks' -prune -o \
     -print | LC_ALL=C sort
 }
@@ -42,7 +43,9 @@ run_pytest_if_available() {
         echo "pytest result: failed"
       fi
     else
-      echo "未检测到测试或测试环境：存在 pyproject.toml 或 tests/，但当前环境没有 pytest。"
+      echo "pytest result: failed"
+      echo "检测到 pyproject.toml 或 tests/，但当前环境没有 pytest。请先安装 dev 依赖：python -m pip install -e '.[dev]'"
+      PYTEST_STATUS=127
     fi
   else
     echo "未检测到测试或测试环境：未发现 pyproject.toml 或 tests/。"
