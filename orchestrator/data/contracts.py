@@ -24,6 +24,8 @@ class QualityFlag(str, Enum):
     UNIT_UNVERIFIED = "unit_unverified"
     ADJUSTMENT_UNVERIFIED = "adjustment_unverified"
     PROVIDER_ERROR = "provider_error"
+    ASOF_MISMATCH = "asof_mismatch"
+    PARTIAL_COVERAGE = "partial_coverage"
     TICKER_MAPPING_UNVERIFIED = "ticker_mapping_unverified"
     CURRENCY_UNVERIFIED = "currency_unverified"
 

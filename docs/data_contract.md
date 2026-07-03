@@ -15,7 +15,7 @@
 - `ticker` 使用项目内部标准 ticker，provider 专用格式必须在接入层转换。
 - `source` 必须记录 provider 名称，例如 `akshare`、`tushare`、`edgartools`、`openbb`。
 - `source_updated_at` 记录该 provider 返回数据或本地缓存刷新的时间。
-- `quality_flags` 使用字符串列表记录缺失、解析失败、单位未验证、复权未验证、provider 异常、冲突、估算、复权未知、币种不明等质量问题。
+- `quality_flags` 使用字符串列表记录缺失、解析失败、单位未验证、复权未验证、provider 异常、as-of 日期不一致、字段覆盖不完整、冲突、估算、复权未知、币种不明等质量问题。
 - 金额字段必须记录或可推导币种，不能混用人民币、港币和美元。
 - 所有跨源校验字段都不能在冲突时静默覆盖，必须保留来源和差异。
 

@@ -22,9 +22,10 @@ def test_akshare_probe_writes_failure_report_when_provider_unavailable(
         probe_akshare,
         "get_eastmoney_proxy_bypass_status",
         lambda: {
-            "enabled": True,
-            "mode": "direct_no_proxy",
-            "no_proxy": "eastmoney.com,.eastmoney.com",
+            "enabled": False,
+            "mode": "auto",
+            "configured_proxy_mode": "auto",
+            "no_proxy": "<local>",
             "proxy_env_vars_present": "HTTP_PROXY, HTTPS_PROXY",
         },
     )
@@ -41,7 +42,8 @@ def test_akshare_probe_writes_failure_report_when_provider_unavailable(
 
     text = report_path.read_text(encoding="utf-8")
     assert "akshare_installed: False" in text
-    assert "eastmoney_proxy_bypass: True" in text
-    assert "eastmoney_proxy_mode: direct_no_proxy" in text
+    assert "eastmoney_proxy_bypass: False" in text
+    assert "configured_proxy_mode: auto" in text
+    assert "eastmoney_proxy_mode: auto" in text
     assert "AkShare unavailable in test" in text
     assert "| US | AAPL | daily_bar | skipped |" in text

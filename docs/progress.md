@@ -4,11 +4,39 @@
 
 本次完成：
 
-- 修复 AkShare Eastmoney 日线 probe 默认走代理的问题：对 Eastmoney 请求使用 `direct_no_proxy`，调用期间临时移除代理环境变量，调用后恢复。
+- AkShare import 成功，版本为 `1.18.64`；A 股估值 probe 部分成功，当前覆盖 `market_cap`、`pe`、`pb`。
+- AkShare 日线接口失败原因集中在 Eastmoney remote disconnect：`respect_env_proxy` 表现为 proxy remote disconnect，`direct_no_proxy` 表现为 remote disconnect。
+- 新增 Eastmoney proxy mode 配置：`ARS_AKSHARE_EASTMONEY_PROXY_MODE=auto|respect_env_proxy|direct_no_proxy`，默认 `auto`，先尝试代理再尝试直连，并在失败 reason 中保留两种模式的摘要。
+- 新增 `scripts/diagnose_akshare_daily.py`，生成 `outputs/reports/akshare_daily_diagnostics.md`，记录 Python executable、AkShare 版本、proxy env vars、接口返回 shape/columns、失败原因和 alternative daily function 候选。
+- 修正估值合并质量：`stock_zh_valuation_baidu` 不再把不同日期的指标静默合成多条看似完整的快照；当前输出 latest merged snapshot，并用 `asof_mismatch` 和 `partial_coverage` 标记日期不一致和字段覆盖不足。
+- 重新运行真实 diagnostics 和 probe：diagnostics 中 `respect_env_proxy` 和 `direct_no_proxy` 均失败；主 probe auto 模式出现少量日线间歇成功，但 Eastmoney 日线仍不能作为稳定数据源。
+
+本次未做：
+
+- 未接 Tushare。
+- 未实现股票推荐。
+- 未实现候选评分。
+- 未实现回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果后续 diagnostics 显示 `respect_env_proxy` 稳定成功，则默认模式可改为 `respect_env_proxy` 或继续使用 `auto`。
+- 如果后续 diagnostics 显示 `direct_no_proxy` 稳定成功，则保留 `direct_no_proxy` 或 `auto`。
+- 如果两种模式仍失败，则 AkShare 日线暂时降级，转向 Tushare 或其他 provider 做日线验证。
+
+## 2026-07-03
+
+本次完成：
+
+- 按验证要求将 AkShare Eastmoney 日线 probe 默认模式改回 `env_proxy`，沿用当前环境中的 `HTTP_PROXY` / `HTTPS_PROXY` 等代理变量。
 - 将 A 股日线真实请求窗口限制为最近 180 天，避免为了 tail(5) 拉取全量历史。
 - 修复 AkShare probe 报告成功项二次联网采样 raw keys 导致的状态污染，改为使用本次成功样本的标准化字段键名。
 - 增加 probe retry：每个 capability 最多尝试 2 次，失败时记录最后一次异常和 attempts。
-- 重新运行真实 AkShare probe：AkShare `1.18.64` 已安装；A 股估值全部成功；最新报告中 `600519.SH` A 股日线成功，`000001.SZ`、`300750.SZ` 和三只港股日线仍被 Eastmoney 远端断开，已固化失败原因。多轮 probe 显示 Eastmoney 日线成功 ticker 存在波动。
+- 重新运行真实 AkShare probe：AkShare `1.18.64` 已安装；`eastmoney_proxy_mode` 为 `env_proxy`；A 股估值全部成功；最新报告中 `300750.SZ` A 股日线成功，`600519.SH`、`000001.SZ` 和三只港股日线仍出现 proxy remote disconnect，已固化失败原因。多轮 probe 显示 Eastmoney 日线成功 ticker 存在波动。
 
 本次未做：
 
@@ -22,7 +50,7 @@
 
 下一步：
 
-- 保留 AkShare 作为可用但不稳定的数据源；优先接入 Tushare 做 A 股日线和估值交叉验证，并继续跟踪 Eastmoney 日线端点的稳定性。
+- 保留 AkShare 作为可用但不稳定的数据源；优先接入 Tushare 做 A 股日线和估值交叉验证，并继续比较 Eastmoney 在代理与直连模式下的端点稳定性。
 
 ## 2026-07-03
 

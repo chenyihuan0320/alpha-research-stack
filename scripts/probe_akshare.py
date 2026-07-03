@@ -20,7 +20,9 @@ from orchestrator.data.providers.akshare_provider import (  # noqa: E402
     fetch_cn_valuation_sample,
     fetch_hk_daily_bar_sample,
     get_akshare_import_status,
+    get_eastmoney_call_history,
     get_eastmoney_proxy_bypass_status,
+    reset_eastmoney_call_history,
 )
 from orchestrator.data.contracts import QualityFlag  # noqa: E402
 from orchestrator.data.sample_universe import load_sample_universe  # noqa: E402
@@ -198,11 +200,33 @@ def _format_list(values: list[str]) -> str:
     return ", ".join(values) if values else "-"
 
 
+def _summarize_eastmoney_history(history: list[dict[str, str]]) -> tuple[str, str]:
+    if not history:
+        return "none", "no Eastmoney daily_bar calls recorded"
+    effective_modes = sorted(
+        {item["attempted_mode"] for item in history if item.get("status") == "success"}
+    )
+    effective = ", ".join(effective_modes) if effective_modes else "none"
+    parts: list[str] = []
+    for mode in ("respect_env_proxy", "direct_no_proxy"):
+        successes = sum(
+            1 for item in history if item.get("attempted_mode") == mode and item.get("status") == "success"
+        )
+        failures = sum(
+            1 for item in history if item.get("attempted_mode") == mode and item.get("status") == "failed"
+        )
+        if successes or failures:
+            parts.append(f"{mode}: success={successes}, failed={failures}")
+    return effective, "; ".join(parts) if parts else "no Eastmoney daily_bar calls recorded"
+
+
 def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     counts = Counter(record.status for record in records)
     import_status = get_akshare_import_status()
     proxy_bypass_status = get_eastmoney_proxy_bypass_status()
+    call_history = get_eastmoney_call_history()
+    effective_proxy_mode, retry_mode_summary = _summarize_eastmoney_history(call_history)
     lines = [
         "# AkShare Provider Probe Report",
         "",
@@ -211,6 +235,9 @@ def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) ->
         f"- akshare_installed: {import_status['installed']}",
         f"- akshare_version: {import_status['version'] or '-'}",
         f"- akshare_import_error: {import_status['error'] or '-'}",
+        f"- configured_proxy_mode: {proxy_bypass_status['configured_proxy_mode']}",
+        f"- effective_proxy_mode: {effective_proxy_mode}",
+        f"- daily_bar_retry_mode_summary: {retry_mode_summary}",
         f"- eastmoney_proxy_bypass: {proxy_bypass_status['enabled']}",
         f"- eastmoney_proxy_mode: {proxy_bypass_status['mode']}",
         f"- eastmoney_no_proxy: {proxy_bypass_status['no_proxy']}",
@@ -277,6 +304,7 @@ def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) ->
 
 def main() -> int:
     universe = load_sample_universe(UNIVERSE_PATH)
+    reset_eastmoney_call_history()
     records = build_akshare_probe_records(universe)
     write_report(records)
     counts = Counter(record.status for record in records)
