@@ -4,6 +4,25 @@
 
 本次完成：
 
+- 对 13 个候选开源项目完成真实选型审计：OpenBB、Qlib、AlphaSift、AlphaEvo、daily_stock_analysis、TradingAgents、FinRobot、FinGPT、vectorbt、Alphalens、EdgarTools、AkShare、Tushare。
+- 更新 `docs/open_source_stack_audit.md`，加入推荐结论、阶段技术栈、不建议优先采用项目、需要自建模块、不能依赖开源解决的问题和下一步最小闭环路线。
+- 按项目记录定位、仓库、license、维护状态、文档质量、安装方式、CLI/Python API/Docker/GitHub Actions、市场与能力覆盖、可复用模块、集成复杂度、贡献评分、推荐角色和最小验证任务。
+- 联网读取 GitHub 页面、README、license/目录信息、commits Atom feed 和 PyPI JSON；未 clone 外部项目，未安装依赖，未提交凭证。
+
+本次未做：
+
+- 未实现业务代码。
+- 未安装大型依赖。
+- 未把外部项目 clone 到仓库。
+
+下一步：
+
+- 建立数据层最小样本和统一数据契约，启动 AkShare + Tushare + EdgarTools + OpenBB 的最小闭环验证。
+
+## 2026-07-03
+
+本次完成：
+
 - 完成自动化检查脚本 `scripts/dev_check.sh`，生成 `outputs/dev_checks/latest.md` 并同步打印检查报告。
 - 完成 `Makefile`，提供 `make check`、`make status`、`make progress` 和 `make tree`。
 - 完成 GitHub Actions CI，在 push 和 pull_request 时运行项目检查。
