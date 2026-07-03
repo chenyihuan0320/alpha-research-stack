@@ -4,6 +4,34 @@
 
 本次完成：
 
+- 修复 AkShare/Eastmoney 日线 provider：在 AkShare Python requests 路径失败后，增加命令行 `curl` fallback，直接请求 Eastmoney kline JSON 并解析为同款日线字段。
+- 增加 Eastmoney host fallback：A 股/港股日线会尝试默认 host 和少量 `*.push2his.eastmoney.com` 变体，并在报告中保留每个 proxy mode / transport 的失败摘要。
+- 增加 AkShare/Sina 日线主路径：默认 `ARS_AKSHARE_DAILY_SOURCE_MODE=sina_first`，A 股使用 `stock_zh_a_daily`，港股使用 `stock_hk_daily`，Eastmoney 降为 fallback/诊断路径。
+- 更新 `scripts/diagnose_akshare_daily.py`：区分 `akshare_requests` 与 `curl_cli` transport，记录单次诊断的 proxy mode、columns、shape 和失败原因。
+- 更新 `scripts/probe_akshare.py` 报告摘要：`daily_bar_retry_mode_summary` 按 `proxy_mode/transport` 统计，避免把 requests 与 curl fallback 混在一起。
+- 修复 `scripts/dev_check.sh` 的 pytest 发现逻辑：未激活 venv 时也可回退到 `.venv/bin/python -m pytest`，保证本地 `make check` 可直接运行。
+- 重新运行真实 AkShare probe：当前环境 AkShare `1.18.64`，`daily_source_mode=sina_first`，主 probe 结果为 `success=9`、`failed=0`、`skipped=3`；A 股/港股日线和 A 股估值样本全部通过当前最小 universe。
+- 单次 diagnostics 显示 `akshare_sina` 成功，Eastmoney requests/curl 仍可能返回 remote disconnect 或 `curl: (52) Empty reply from server`，说明稳定主路径应优先使用新浪接口。
+
+本次未做：
+
+- 未接 Tushare。
+- 未实现股票推荐。
+- 未实现候选评分。
+- 未实现回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 保留 AkShare/Sina 作为第一阶段免费日线主路径；继续用 AkShare/Eastmoney 做对照诊断，并优先接 Tushare 做 A 股日线和估值交叉验证。
+
+## 2026-07-03
+
+本次完成：
+
 - AkShare import 成功，版本为 `1.18.64`；A 股估值 probe 部分成功，当前覆盖 `market_cap`、`pe`、`pb`。
 - AkShare 日线接口失败原因集中在 Eastmoney remote disconnect：`respect_env_proxy` 表现为 proxy remote disconnect，`direct_no_proxy` 表现为 remote disconnect。
 - 新增 Eastmoney proxy mode 配置：`ARS_AKSHARE_EASTMONEY_PROXY_MODE=auto|respect_env_proxy|direct_no_proxy`，默认 `auto`，先尝试代理再尝试直连，并在失败 reason 中保留两种模式的摘要。

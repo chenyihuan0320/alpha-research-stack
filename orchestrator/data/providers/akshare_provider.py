@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import subprocess
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Callable, Iterator
+from urllib.parse import urlencode
 
 from orchestrator.data.contracts import DailyBar, Market, QualityFlag, ValuationSnapshot
 
@@ -27,6 +30,8 @@ PROXY_ENV_KEYS = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL
 SAMPLE_LOOKBACK_DAYS = 180
 EASTMONEY_PROXY_MODE_ENV = "ARS_AKSHARE_EASTMONEY_PROXY_MODE"
 EASTMONEY_PROXY_MODES = ("direct_no_proxy", "respect_env_proxy", "auto")
+AKSHARE_DAILY_SOURCE_MODE_ENV = "ARS_AKSHARE_DAILY_SOURCE_MODE"
+AKSHARE_DAILY_SOURCE_MODES = ("sina_first", "eastmoney_first", "eastmoney_only", "sina_only")
 _EASTMONEY_CALL_HISTORY: list[dict[str, str]] = []
 
 
@@ -46,6 +51,16 @@ def normalize_hk_ticker_for_akshare(ticker: str) -> str:
             f"Invalid HK ticker '{ticker}'. Expected project format like 0700.HK or 9988.HK."
         )
     return match.group("code").zfill(5)
+
+
+def normalize_cn_ticker_for_sina(ticker: str) -> str:
+    match = CN_TICKER_RE.fullmatch(ticker.upper())
+    if not match:
+        raise AkShareProviderError(
+            f"Invalid CN ticker '{ticker}'. Expected project format like 600519.SH or 000001.SZ."
+        )
+    prefix = "sh" if match.group("exchange") == "SH" else "sz"
+    return f"{prefix}{match.group('code')}"
 
 
 def _load_akshare() -> Any:
@@ -77,6 +92,16 @@ def get_configured_eastmoney_proxy_mode() -> str:
     return mode
 
 
+def get_configured_akshare_daily_source_mode() -> str:
+    mode = os.environ.get(AKSHARE_DAILY_SOURCE_MODE_ENV, "sina_first").strip().lower()
+    if mode not in AKSHARE_DAILY_SOURCE_MODES:
+        allowed = ", ".join(AKSHARE_DAILY_SOURCE_MODES)
+        raise AkShareProviderError(
+            f"Invalid {AKSHARE_DAILY_SOURCE_MODE_ENV}='{mode}'. Expected one of: {allowed}."
+        )
+    return mode
+
+
 def reset_eastmoney_call_history() -> None:
     _EASTMONEY_CALL_HISTORY.clear()
 
@@ -95,6 +120,7 @@ def _record_eastmoney_call(
     context: str,
     configured_mode: str,
     attempted_mode: str,
+    transport: str,
     status: str,
     error: str = "",
 ) -> None:
@@ -103,6 +129,7 @@ def _record_eastmoney_call(
             "context": context,
             "configured_mode": configured_mode,
             "attempted_mode": attempted_mode,
+            "transport": transport,
             "status": status,
             "error": error,
         }
@@ -133,6 +160,7 @@ def get_eastmoney_proxy_bypass_status() -> dict[str, str | bool]:
         "enabled": configured_mode == "direct_no_proxy",
         "mode": configured_mode,
         "configured_proxy_mode": configured_mode,
+        "daily_source_mode": get_configured_akshare_daily_source_mode(),
         "no_proxy": os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "-",
         "proxy_env_vars_present": ", ".join(proxy_env_vars) if proxy_env_vars else "-",
     }
@@ -160,6 +188,7 @@ def _call_eastmoney_once(
     *,
     configured_mode: str,
     attempted_mode: str,
+    transport: str,
 ) -> Any:
     try:
         if attempted_mode == "direct_no_proxy":
@@ -174,6 +203,7 @@ def _call_eastmoney_once(
             context=context,
             configured_mode=configured_mode,
             attempted_mode=attempted_mode,
+            transport=transport,
             status="failed",
             error=_summarize_error(exc),
         )
@@ -183,12 +213,18 @@ def _call_eastmoney_once(
         context=context,
         configured_mode=configured_mode,
         attempted_mode=attempted_mode,
+        transport=transport,
         status="success",
     )
     return result
 
 
-def _call_eastmoney_provider(call: Callable[[], Any], context: str) -> Any:
+def _call_eastmoney_provider(
+    call: Callable[[], Any],
+    context: str,
+    *,
+    transport: str = "akshare_requests",
+) -> Any:
     configured_mode = get_configured_eastmoney_proxy_mode()
     if configured_mode in {"direct_no_proxy", "respect_env_proxy"}:
         return _call_eastmoney_once(
@@ -196,6 +232,7 @@ def _call_eastmoney_provider(call: Callable[[], Any], context: str) -> Any:
             context,
             configured_mode=configured_mode,
             attempted_mode=configured_mode,
+            transport=transport,
         )
 
     errors: dict[str, str] = {}
@@ -206,6 +243,7 @@ def _call_eastmoney_provider(call: Callable[[], Any], context: str) -> Any:
                 context,
                 configured_mode=configured_mode,
                 attempted_mode=attempted_mode,
+                transport=transport,
             )
         except AkShareProviderError as exc:
             errors[attempted_mode] = _summarize_error(exc)
@@ -230,6 +268,10 @@ def _tail_records(frame: Any, limit: int = 5) -> list[dict[str, Any]]:
     if not isinstance(records, list):
         raise AkShareProviderError("AkShare returned an unsupported table format.")
     return records
+
+
+def _tail_raw_records(rows: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
+    return rows[-limit:] if rows else []
 
 
 def _first_present(row: dict[str, Any], names: list[str]) -> Any:
@@ -324,33 +366,348 @@ VALUATION_INDICATOR_MAP = {
     "pb": "市净率",
 }
 
+EASTMONEY_A_KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+EASTMONEY_HK_KLINE_URL = "https://33.push2his.eastmoney.com/api/qt/stock/kline/get"
+EASTMONEY_A_KLINE_URLS = (
+    EASTMONEY_A_KLINE_URL,
+    "https://33.push2his.eastmoney.com/api/qt/stock/kline/get",
+    "https://80.push2his.eastmoney.com/api/qt/stock/kline/get",
+)
+EASTMONEY_HK_KLINE_URLS = (
+    EASTMONEY_HK_KLINE_URL,
+    "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+    "https://80.push2his.eastmoney.com/api/qt/stock/kline/get",
+)
+EASTMONEY_KLINE_FIELDS = [
+    "日期",
+    "开盘",
+    "收盘",
+    "最高",
+    "最低",
+    "成交量",
+    "成交额",
+    "振幅",
+    "涨跌幅",
+    "涨跌额",
+    "换手率",
+]
 
-def _fetch_cn_daily_bar_raw(ticker: str, adjust: str = "qfq") -> list[dict[str, Any]]:
-    if adjust not in {"qfq", "hfq", "none"}:
-        raise AkShareProviderError("adjust must be one of: qfq, hfq, none")
-    ak = _load_akshare()
-    symbol = normalize_cn_ticker_for_akshare(ticker)
-    provider_adjust = "" if adjust == "none" else adjust
-    start_date, end_date = _sample_date_window()
-    frame = _call_eastmoney_provider(
-        lambda: ak.stock_zh_a_hist(
+
+def _eastmoney_cn_market_code(symbol: str) -> str:
+    return "1" if symbol.startswith("6") else "0"
+
+
+def _eastmoney_adjust_code(adjust: str) -> str:
+    adjust_map = {"qfq": "1", "hfq": "2", "none": "0", "": "0"}
+    try:
+        return adjust_map[adjust]
+    except KeyError as exc:
+        raise AkShareProviderError("adjust must be one of: qfq, hfq, none") from exc
+
+
+def _build_eastmoney_cn_kline_url(
+    *,
+    base_url: str = EASTMONEY_A_KLINE_URL,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+    adjust: str,
+) -> str:
+    params = {
+        "fields1": "f1,f2,f3,f4,f5,f6",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116",
+        "ut": "7eea3edcaed734bea9cbfc24409ed989",
+        "klt": "101",
+        "fqt": _eastmoney_adjust_code(adjust),
+        "secid": f"{_eastmoney_cn_market_code(symbol)}.{symbol}",
+        "beg": start_date,
+        "end": end_date,
+    }
+    return f"{base_url}?{urlencode(params)}"
+
+
+def _build_eastmoney_hk_kline_url(
+    *,
+    base_url: str = EASTMONEY_HK_KLINE_URL,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+) -> str:
+    params = {
+        "secid": f"116.{symbol}",
+        "fields1": "f1,f2,f3,f4,f5,f6",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+        "klt": "101",
+        "fqt": "0",
+        "end": "20500000",
+        "lmt": "1000000",
+    }
+    return f"{base_url}?{urlencode(params)}"
+
+
+def _run_curl_json(url: str, attempted_mode: str, context: str) -> dict[str, Any]:
+    command = [
+        "curl",
+        "-L",
+        "-sS",
+        "--fail",
+        "--max-time",
+        "20",
+    ]
+    if attempted_mode == "direct_no_proxy":
+        command.extend(["--noproxy", "*"])
+    command.append(url)
+
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=25,
+        )
+    except FileNotFoundError as exc:
+        raise AkShareProviderError("curl executable is required for Eastmoney fallback but was not found.") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise AkShareProviderError(f"curl Eastmoney fallback timed out for {context}.") from exc
+
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip() or completed.stdout.strip()
+        raise AkShareProviderError(
+            f"curl Eastmoney fallback failed for {context}: exit={completed.returncode}; {stderr[:500]}"
+        )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise AkShareProviderError(f"curl Eastmoney fallback returned invalid JSON for {context}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise AkShareProviderError(f"curl Eastmoney fallback returned unsupported JSON for {context}.")
+    return payload
+
+
+def _parse_eastmoney_kline_payload(
+    payload: dict[str, Any],
+    *,
+    context: str,
+    symbol: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict[str, Any]]:
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise AkShareProviderError(f"Eastmoney kline payload missing data for {context}.")
+    klines = data.get("klines")
+    if not isinstance(klines, list):
+        raise AkShareProviderError(f"Eastmoney kline payload missing klines for {context}.")
+
+    rows: list[dict[str, Any]] = []
+    start_iso = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}" if start_date else None
+    end_iso = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}" if end_date else None
+    for item in klines:
+        parts = str(item).split(",")
+        if len(parts) < len(EASTMONEY_KLINE_FIELDS):
+            continue
+        row = dict(zip(EASTMONEY_KLINE_FIELDS, parts[: len(EASTMONEY_KLINE_FIELDS)], strict=False))
+        if symbol is not None:
+            row["股票代码"] = symbol
+        row["_transport"] = "curl_cli"
+        row_date = str(row["日期"])
+        if start_iso and row_date < start_iso:
+            continue
+        if end_iso and row_date > end_iso:
+            continue
+        rows.append(row)
+    return rows
+
+
+def _call_eastmoney_curl_json(url: str, context: str) -> dict[str, Any]:
+    configured_mode = get_configured_eastmoney_proxy_mode()
+
+    def make_call(attempted_mode: str) -> Callable[[], dict[str, Any]]:
+        return lambda attempted_mode=attempted_mode: _run_curl_json(url, attempted_mode, context)
+
+    if configured_mode in {"direct_no_proxy", "respect_env_proxy"}:
+        return _call_eastmoney_once(
+            make_call(configured_mode),
+            context,
+            configured_mode=configured_mode,
+            attempted_mode=configured_mode,
+            transport="curl_cli",
+        )
+
+    errors: dict[str, str] = {}
+    for attempted_mode in ("respect_env_proxy", "direct_no_proxy"):
+        try:
+            return _call_eastmoney_once(
+                make_call(attempted_mode),
+                context,
+                configured_mode=configured_mode,
+                attempted_mode=attempted_mode,
+                transport="curl_cli",
+            )
+        except AkShareProviderError as exc:
+            errors[attempted_mode] = _summarize_error(exc)
+    raise AkShareProviderError(
+        f"Eastmoney curl fallback failed for {context}; "
+        f"respect_env_proxy failed: {errors.get('respect_env_proxy', '-')}; "
+        f"direct_no_proxy failed: {errors.get('direct_no_proxy', '-')}"
+    )
+
+
+def _fetch_cn_daily_bar_raw_via_curl(
+    *,
+    ticker: str,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+    adjust: str,
+) -> list[dict[str, Any]]:
+    errors: list[str] = []
+    for base_url in EASTMONEY_A_KLINE_URLS:
+        url = _build_eastmoney_cn_kline_url(
+            base_url=base_url,
             symbol=symbol,
-            period="daily",
+            start_date=start_date,
+            end_date=end_date,
+            adjust=adjust,
+        )
+        context = f"CN daily_bar {ticker} curl_fallback {base_url}"
+        try:
+            payload = _call_eastmoney_curl_json(url, context)
+            return _tail_raw_records(
+                _parse_eastmoney_kline_payload(
+                    payload,
+                    context=context,
+                    symbol=symbol,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            )
+        except AkShareProviderError as exc:
+            errors.append(f"{base_url}: {_summarize_error(exc)}")
+    raise AkShareProviderError("; ".join(errors))
+
+
+def _fetch_hk_daily_bar_raw_via_curl(
+    *,
+    ticker: str,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+) -> list[dict[str, Any]]:
+    errors: list[str] = []
+    for base_url in EASTMONEY_HK_KLINE_URLS:
+        url = _build_eastmoney_hk_kline_url(
+            base_url=base_url,
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        context = f"HK daily_bar {ticker} curl_fallback {base_url}"
+        try:
+            payload = _call_eastmoney_curl_json(url, context)
+            return _tail_raw_records(
+                _parse_eastmoney_kline_payload(
+                    payload,
+                    context=context,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            )
+        except AkShareProviderError as exc:
+            errors.append(f"{base_url}: {_summarize_error(exc)}")
+    raise AkShareProviderError("; ".join(errors))
+
+
+def _fetch_cn_daily_bar_raw_via_sina(
+    *,
+    ak: Any,
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    adjust: str,
+) -> list[dict[str, Any]]:
+    symbol = normalize_cn_ticker_for_sina(ticker)
+    provider_adjust = "" if adjust == "none" else adjust
+    frame = _call_provider(
+        lambda: ak.stock_zh_a_daily(
+            symbol=symbol,
             start_date=start_date,
             end_date=end_date,
             adjust=provider_adjust,
-            timeout=15,
         ),
-        f"CN daily_bar {ticker}",
+        f"CN daily_bar {ticker} sina",
     )
-    return _tail_records(frame)
+    rows = _tail_records(frame)
+    for row in rows:
+        row["_transport"] = "akshare_sina"
+    return rows
 
 
-def _fetch_hk_daily_bar_raw(ticker: str) -> list[dict[str, Any]]:
-    ak = _load_akshare()
+def _fetch_hk_daily_bar_raw_via_sina(
+    *,
+    ak: Any,
+    ticker: str,
+) -> list[dict[str, Any]]:
     symbol = normalize_hk_ticker_for_akshare(ticker)
-    start_date, end_date = _sample_date_window()
+    frame = _call_provider(
+        lambda: ak.stock_hk_daily(symbol=symbol, adjust=""),
+        f"HK daily_bar {ticker} sina",
+    )
+    rows = _tail_records(frame)
+    for row in rows:
+        row["_transport"] = "akshare_sina"
+    return rows
 
+
+def _fetch_cn_daily_bar_raw_via_eastmoney(
+    *,
+    ak: Any,
+    ticker: str,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+    adjust: str,
+) -> list[dict[str, Any]]:
+    provider_adjust = "" if adjust == "none" else adjust
+    try:
+        frame = _call_eastmoney_provider(
+            lambda: ak.stock_zh_a_hist(
+                symbol=symbol,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust=provider_adjust,
+                timeout=15,
+            ),
+            f"CN daily_bar {ticker}",
+        )
+        return _tail_records(frame)
+    except AkShareProviderError as akshare_exc:
+        try:
+            return _fetch_cn_daily_bar_raw_via_curl(
+                ticker=ticker,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                adjust=adjust,
+            )
+        except AkShareProviderError as curl_exc:
+            raise AkShareProviderError(
+                f"CN daily_bar {ticker} failed through Eastmoney requests and curl fallback; "
+                f"akshare_requests: {_summarize_error(akshare_exc)}; "
+                f"curl_cli: {_summarize_error(curl_exc)}"
+            ) from curl_exc
+
+
+def _fetch_hk_daily_bar_raw_via_eastmoney(
+    *,
+    ak: Any,
+    ticker: str,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+) -> list[dict[str, Any]]:
     def call() -> Any:
         try:
             return ak.stock_hk_hist(
@@ -363,8 +720,109 @@ def _fetch_hk_daily_bar_raw(ticker: str) -> list[dict[str, Any]]:
         except TypeError:
             return ak.stock_hk_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date)
 
-    frame = _call_eastmoney_provider(call, f"HK daily_bar {ticker}")
-    return _tail_records(frame)
+    try:
+        frame = _call_eastmoney_provider(call, f"HK daily_bar {ticker}")
+        return _tail_records(frame)
+    except AkShareProviderError as akshare_exc:
+        try:
+            return _fetch_hk_daily_bar_raw_via_curl(
+                ticker=ticker,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        except AkShareProviderError as curl_exc:
+            raise AkShareProviderError(
+                f"HK daily_bar {ticker} failed through Eastmoney requests and curl fallback; "
+                f"akshare_requests: {_summarize_error(akshare_exc)}; "
+                f"curl_cli: {_summarize_error(curl_exc)}"
+            ) from curl_exc
+
+
+def _fetch_cn_daily_bar_raw(ticker: str, adjust: str = "qfq") -> list[dict[str, Any]]:
+    if adjust not in {"qfq", "hfq", "none"}:
+        raise AkShareProviderError("adjust must be one of: qfq, hfq, none")
+    ak = _load_akshare()
+    symbol = normalize_cn_ticker_for_akshare(ticker)
+    start_date, end_date = _sample_date_window()
+    mode = get_configured_akshare_daily_source_mode()
+    if mode == "sina_only":
+        return _fetch_cn_daily_bar_raw_via_sina(
+            ak=ak,
+            ticker=ticker,
+            start_date=start_date,
+            end_date=end_date,
+            adjust=adjust,
+        )
+    if mode == "eastmoney_only":
+        return _fetch_cn_daily_bar_raw_via_eastmoney(
+            ak=ak,
+            ticker=ticker,
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            adjust=adjust,
+        )
+    first, second = (
+        ("sina", "eastmoney") if mode == "sina_first" else ("eastmoney", "sina")
+    )
+    errors: list[str] = []
+    for source in (first, second):
+        try:
+            if source == "sina":
+                return _fetch_cn_daily_bar_raw_via_sina(
+                    ak=ak,
+                    ticker=ticker,
+                    start_date=start_date,
+                    end_date=end_date,
+                    adjust=adjust,
+                )
+            return _fetch_cn_daily_bar_raw_via_eastmoney(
+                ak=ak,
+                symbol=symbol,
+                ticker=ticker,
+                start_date=start_date,
+                end_date=end_date,
+                adjust=adjust,
+            )
+        except AkShareProviderError as exc:
+            errors.append(f"{source}: {_summarize_error(exc)}")
+    raise AkShareProviderError(f"CN daily_bar {ticker} failed through AkShare daily sources; " + "; ".join(errors))
+
+
+def _fetch_hk_daily_bar_raw(ticker: str) -> list[dict[str, Any]]:
+    ak = _load_akshare()
+    symbol = normalize_hk_ticker_for_akshare(ticker)
+    start_date, end_date = _sample_date_window()
+    mode = get_configured_akshare_daily_source_mode()
+    if mode == "sina_only":
+        return _fetch_hk_daily_bar_raw_via_sina(ak=ak, ticker=ticker)
+    if mode == "eastmoney_only":
+        return _fetch_hk_daily_bar_raw_via_eastmoney(
+            ak=ak,
+            ticker=ticker,
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    first, second = (
+        ("sina", "eastmoney") if mode == "sina_first" else ("eastmoney", "sina")
+    )
+    errors: list[str] = []
+    for source in (first, second):
+        try:
+            if source == "sina":
+                return _fetch_hk_daily_bar_raw_via_sina(ak=ak, ticker=ticker)
+            return _fetch_hk_daily_bar_raw_via_eastmoney(
+                ak=ak,
+                ticker=ticker,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        except AkShareProviderError as exc:
+            errors.append(f"{source}: {_summarize_error(exc)}")
+    raise AkShareProviderError(f"HK daily_bar {ticker} failed through AkShare daily sources; " + "; ".join(errors))
 
 
 def _latest_row(rows: list[dict[str, Any]]) -> dict[str, Any] | None:

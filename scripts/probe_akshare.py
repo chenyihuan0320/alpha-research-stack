@@ -204,19 +204,33 @@ def _summarize_eastmoney_history(history: list[dict[str, str]]) -> tuple[str, st
     if not history:
         return "none", "no Eastmoney daily_bar calls recorded"
     effective_modes = sorted(
-        {item["attempted_mode"] for item in history if item.get("status") == "success"}
+        {
+            f"{item['attempted_mode']}/{item.get('transport', 'unknown')}"
+            for item in history
+            if item.get("status") == "success"
+        }
     )
     effective = ", ".join(effective_modes) if effective_modes else "none"
     parts: list[str] = []
     for mode in ("respect_env_proxy", "direct_no_proxy"):
-        successes = sum(
-            1 for item in history if item.get("attempted_mode") == mode and item.get("status") == "success"
-        )
-        failures = sum(
-            1 for item in history if item.get("attempted_mode") == mode and item.get("status") == "failed"
-        )
-        if successes or failures:
-            parts.append(f"{mode}: success={successes}, failed={failures}")
+        transports = sorted({item.get("transport", "unknown") for item in history if item.get("attempted_mode") == mode})
+        for transport in transports:
+            successes = sum(
+                1
+                for item in history
+                if item.get("attempted_mode") == mode
+                and item.get("transport", "unknown") == transport
+                and item.get("status") == "success"
+            )
+            failures = sum(
+                1
+                for item in history
+                if item.get("attempted_mode") == mode
+                and item.get("transport", "unknown") == transport
+                and item.get("status") == "failed"
+            )
+            if successes or failures:
+                parts.append(f"{mode}/{transport}: success={successes}, failed={failures}")
     return effective, "; ".join(parts) if parts else "no Eastmoney daily_bar calls recorded"
 
 
@@ -236,6 +250,7 @@ def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) ->
         f"- akshare_version: {import_status['version'] or '-'}",
         f"- akshare_import_error: {import_status['error'] or '-'}",
         f"- configured_proxy_mode: {proxy_bypass_status['configured_proxy_mode']}",
+        f"- daily_source_mode: {proxy_bypass_status.get('daily_source_mode', '-')}",
         f"- effective_proxy_mode: {effective_proxy_mode}",
         f"- daily_bar_retry_mode_summary: {retry_mode_summary}",
         f"- eastmoney_proxy_bypass: {proxy_bypass_status['enabled']}",

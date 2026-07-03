@@ -66,8 +66,10 @@ python scripts/probe_akshare.py
 
 该命令会联网访问 AkShare 上游数据源，只用于 provider validation。它不生成股票推荐、候选评分、回测或交易指令。失败报告也有价值，因为它会记录依赖安装、网络、接口、字段覆盖或 provider 异常问题。
 
-AkShare 的 A 股/港股日线接口使用 Eastmoney 上游端点。可通过 `ARS_AKSHARE_EASTMONEY_PROXY_MODE` 设置 `auto`、`respect_env_proxy` 或 `direct_no_proxy`；默认 `auto` 会先尊重当前环境代理，失败后再尝试直连。报告会记录 configured/effective proxy mode、`NO_PROXY` 和当前可见代理变量，便于比较代理与直连模式的差异。
+AkShare 的 A 股/港股日线默认使用新浪财经接口，配置为 `ARS_AKSHARE_DAILY_SOURCE_MODE=sina_first`。可选值包括 `sina_first`、`eastmoney_first`、`eastmoney_only`、`sina_only`。当前环境下 Eastmoney 日线链路不稳定，因此 Eastmoney 只作为 fallback 和诊断路径。
+
+Eastmoney 诊断仍可通过 `ARS_AKSHARE_EASTMONEY_PROXY_MODE` 设置 `auto`、`respect_env_proxy` 或 `direct_no_proxy`；默认 `auto` 会先尊重当前环境代理，失败后再尝试直连。报告会记录 configured/effective proxy mode、`NO_PROXY` 和当前可见代理变量，便于比较代理与直连模式的差异。
 
 ## 当前阶段
 
-已完成开源审计、数据契约和 dry-run provider probe。当前进入 AkShare 最小 provider 验证阶段：先验证 A 股/港股日线和 A 股估值字段覆盖，再决定是否接入 Tushare 做 A 股交叉验证。
+已完成开源审计、数据契约和 dry-run provider probe。当前 AkShare 最小 provider 已改为新浪日线优先、Eastmoney 诊断/fallback，并已通过 A 股/港股日线和 A 股估值最小样本验证；下一步是接入 Tushare 做 A 股交叉验证。

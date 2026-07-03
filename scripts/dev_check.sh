@@ -30,9 +30,18 @@ file_status() {
 
 run_pytest_if_available() {
   if [[ -f "pyproject.toml" || -d "tests" ]]; then
+    local pytest_cmd=()
     if command -v pytest >/dev/null 2>&1; then
+      pytest_cmd=(pytest -q)
+    elif command -v python >/dev/null 2>&1 && python -c 'import pytest' >/dev/null 2>&1; then
+      pytest_cmd=(python -m pytest -q)
+    elif [[ -x ".venv/bin/python" ]] && .venv/bin/python -c 'import pytest' >/dev/null 2>&1; then
+      pytest_cmd=(.venv/bin/python -m pytest -q)
+    fi
+
+    if [[ "${#pytest_cmd[@]}" -gt 0 ]]; then
       echo '```text'
-      if pytest -q; then
+      if "${pytest_cmd[@]}"; then
         echo '```'
         echo
         echo "pytest result: passed"
@@ -44,7 +53,7 @@ run_pytest_if_available() {
       fi
     else
       echo "pytest result: failed"
-      echo "检测到 pyproject.toml 或 tests/，但当前环境没有 pytest。请先安装 dev 依赖：python -m pip install -e '.[dev]'"
+      echo "检测到 pyproject.toml 或 tests/，但当前环境没有可运行的 pytest。请先安装 dev 依赖：python -m pip install -e '.[dev]'"
       PYTEST_STATUS=127
     fi
   else
