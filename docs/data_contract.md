@@ -15,7 +15,7 @@
 - `ticker` 使用项目内部标准 ticker，provider 专用格式必须在接入层转换。
 - `source` 必须记录 provider 名称，例如 `akshare`、`tushare`、`edgartools`、`openbb`。
 - `source_updated_at` 记录该 provider 返回数据或本地缓存刷新的时间。
-- `quality_flags` 使用字符串列表记录缺失、冲突、估算、复权未知、币种不明等质量问题。
+- `quality_flags` 使用字符串列表记录缺失、解析失败、单位未验证、复权未验证、provider 异常、冲突、估算、复权未知、币种不明等质量问题。
 - 金额字段必须记录或可推导币种，不能混用人民币、港币和美元。
 - 所有跨源校验字段都不能在冲突时静默覆盖，必须保留来源和差异。
 
@@ -70,8 +70,10 @@ JSON schema 风格：
 | turnover | number | 否 | 是 | 是 | 换手率 |
 | source | string | 是 | 否 | 否 | 数据来源 |
 | source_updated_at | datetime | 是 | 否 | 否 | 来源更新时间 |
-| adjustment | string | 是 | 可空 | 是 | `none` / `forward` / `backward` / `unknown` |
+| adjustment | string | 是 | 可空 | 是 | `none` / `qfq` / `hfq` / `forward` / `backward` / `unknown` |
 | quality_flags | array[string] | 是 | 否 | 否 | 质量标记 |
+
+`qfq` / `hfq` 是中国市场常见复权口径，通常分别对应前复权和后复权。`forward` / `backward` 是跨市场通用描述。adapter 必须记录 provider 原始复权参数，不能只写通用描述。
 
 JSON schema 风格：
 

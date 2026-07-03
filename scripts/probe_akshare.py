@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,12 +19,16 @@ from orchestrator.data.providers.akshare_provider import (  # noqa: E402
     fetch_cn_daily_bar_sample,
     fetch_cn_valuation_sample,
     fetch_hk_daily_bar_sample,
+    get_akshare_import_status,
+    get_eastmoney_proxy_bypass_status,
 )
+from orchestrator.data.contracts import QualityFlag  # noqa: E402
 from orchestrator.data.sample_universe import load_sample_universe  # noqa: E402
 
 
 UNIVERSE_PATH = ROOT / "orchestrator" / "sample_data" / "universe_sample.csv"
 REPORT_PATH = ROOT / "outputs" / "reports" / "akshare_probe_report.md"
+PROBE_ATTEMPTS = 2
 
 
 @dataclass(slots=True)
@@ -36,6 +41,8 @@ class ProbeRecord:
     covered_fields: list[str]
     missing_fields: list[str]
     quality_flags: list[str]
+    field_coverage_pct: float
+    sample_keys: list[str]
     reason: str
 
 
@@ -65,7 +72,9 @@ EXPECTED_FIELDS = {
 }
 
 
-def _summarize_rows(rows: list[Any], expected_fields: list[str]) -> tuple[list[str], list[str], list[str]]:
+def _summarize_rows(
+    rows: list[Any], expected_fields: list[str]
+) -> tuple[list[str], list[str], list[str], list[str]]:
     dict_rows = [row.to_dict() for row in rows]
     covered = sorted(
         field
@@ -80,7 +89,8 @@ def _summarize_rows(rows: list[Any], expected_fields: list[str]) -> tuple[list[s
             for flag in item.get("quality_flags", [])
         }
     )
-    return covered, missing, flags
+    sample_keys = list(dict_rows[0].keys()) if dict_rows else []
+    return covered, missing, flags, sample_keys
 
 
 def _run_capability(
@@ -91,9 +101,18 @@ def _run_capability(
     fetcher: Callable[[], list[Any]],
 ) -> ProbeRecord:
     expected = EXPECTED_FIELDS[capability]
-    try:
-        rows = fetcher()
-    except AkShareProviderError as exc:
+    last_error: AkShareProviderError | None = None
+    rows: list[Any] = []
+    for attempt in range(1, PROBE_ATTEMPTS + 1):
+        try:
+            rows = fetcher()
+            last_error = None
+            break
+        except AkShareProviderError as exc:
+            last_error = exc
+            if attempt < PROBE_ATTEMPTS:
+                time.sleep(1)
+    if last_error is not None:
         return ProbeRecord(
             market=market,
             ticker=ticker,
@@ -102,11 +121,14 @@ def _run_capability(
             returned_rows=0,
             covered_fields=[],
             missing_fields=expected,
-            quality_flags=[],
-            reason=str(exc),
+            quality_flags=[QualityFlag.PROVIDER_ERROR.value],
+            field_coverage_pct=0.0,
+            sample_keys=[],
+            reason=f"{last_error} after {PROBE_ATTEMPTS} attempts",
         )
 
-    covered, missing, flags = _summarize_rows(rows, expected)
+    covered, missing, flags, sample_keys = _summarize_rows(rows, expected)
+    coverage_pct = round((len(covered) / len(expected)) * 100, 1) if expected else 100.0
     return ProbeRecord(
         market=market,
         ticker=ticker,
@@ -116,6 +138,8 @@ def _run_capability(
         covered_fields=covered,
         missing_fields=missing,
         quality_flags=flags,
+        field_coverage_pct=coverage_pct,
+        sample_keys=sample_keys,
         reason="",
     )
 
@@ -162,6 +186,8 @@ def build_akshare_probe_records(universe: list[dict[str, str]]) -> list[ProbeRec
                     covered_fields=[],
                     missing_fields=EXPECTED_FIELDS["daily_bar"],
                     quality_flags=[],
+                    field_coverage_pct=0.0,
+                    sample_keys=[],
                     reason="AkShare not primary US provider in phase 1",
                 )
             )
@@ -175,11 +201,20 @@ def _format_list(values: list[str]) -> str:
 def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     counts = Counter(record.status for record in records)
+    import_status = get_akshare_import_status()
+    proxy_bypass_status = get_eastmoney_proxy_bypass_status()
     lines = [
         "# AkShare Provider Probe Report",
         "",
         f"- 运行时间: {datetime.now(UTC).isoformat()}",
         "- provider: akshare",
+        f"- akshare_installed: {import_status['installed']}",
+        f"- akshare_version: {import_status['version'] or '-'}",
+        f"- akshare_import_error: {import_status['error'] or '-'}",
+        f"- eastmoney_proxy_bypass: {proxy_bypass_status['enabled']}",
+        f"- eastmoney_proxy_mode: {proxy_bypass_status['mode']}",
+        f"- eastmoney_no_proxy: {proxy_bypass_status['no_proxy']}",
+        f"- proxy_env_vars_present_outside_eastmoney_call: {proxy_bypass_status['proxy_env_vars_present']}",
         "- scope: CN daily_bar, CN valuation_snapshot, HK daily_bar; US skipped",
         "- note: This report is data coverage evidence only. It does not contain recommendations, scores, backtests, LLM output, or trading instructions.",
         "",
@@ -191,13 +226,14 @@ def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) ->
         "",
         "## Results",
         "",
-        "| market | ticker | capability | status | rows | covered_fields | missing_fields | quality_flags | reason |",
-        "| --- | --- | --- | --- | ---: | --- | --- | --- | --- |",
+        "| market | ticker | capability | status | rows | coverage_pct | sample_keys | covered_fields | missing_fields | quality_flags | reason |",
+        "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- |",
     ]
     for record in records:
         lines.append(
             f"| {record.market} | {record.ticker} | {record.capability} | {record.status} | "
-            f"{record.returned_rows} | {_format_list(record.covered_fields)} | "
+            f"{record.returned_rows} | {record.field_coverage_pct:.1f}% | "
+            f"{_format_list(record.sample_keys[:20])} | {_format_list(record.covered_fields)} | "
             f"{_format_list(record.missing_fields)} | {_format_list(record.quality_flags)} | "
             f"{record.reason.replace('|', '\\|') or '-'} |"
         )
@@ -210,6 +246,7 @@ def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) ->
             "- `covered_fields` means at least one returned sample row had a non-null value for that contract field.",
             "- `missing_fields` may include fields AkShare does not provide directly, such as `ev_ebitda` or `fcf_yield`.",
             "- `quality_flags` are adapter-level flags generated from contract/provider field mapping.",
+            "- `sample_keys` shows the first returned normalized sample row's key names, capped to 20 keys; it does not include full market data.",
             "",
             "## Failure Reasons",
             "",
@@ -230,6 +267,7 @@ def write_report(records: list[ProbeRecord], report_path: Path = REPORT_PATH) ->
             "- If AkShare is not installed, install it only in a provider validation environment and rerun this script.",
             "- Review missing fields before any strategy work.",
             "- Cross-check A-share daily bars and valuation fields with Tushare before using them for candidate discovery.",
+            "- Treat Eastmoney daily-bar coverage as unstable until repeated probes succeed across the full sample universe.",
             "- Keep OpenBB as optional until license and provider coverage are confirmed.",
             "",
         ]

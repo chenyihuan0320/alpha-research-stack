@@ -16,10 +16,14 @@ class Market(str, Enum):
 
 class QualityFlag(str, Enum):
     MISSING_FIELD = "missing_field"
+    PARSE_ERROR = "parse_error"
     SOURCE_CONFLICT = "source_conflict"
     ESTIMATED_VALUE = "estimated_value"
     STALE_SOURCE = "stale_source"
     UNKNOWN_ADJUSTMENT = "unknown_adjustment"
+    UNIT_UNVERIFIED = "unit_unverified"
+    ADJUSTMENT_UNVERIFIED = "adjustment_unverified"
+    PROVIDER_ERROR = "provider_error"
     TICKER_MAPPING_UNVERIFIED = "ticker_mapping_unverified"
     CURRENCY_UNVERIFIED = "currency_unverified"
 

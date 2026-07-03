@@ -4,6 +4,54 @@
 
 本次完成：
 
+- 修复 AkShare Eastmoney 日线 probe 默认走代理的问题：对 Eastmoney 请求使用 `direct_no_proxy`，调用期间临时移除代理环境变量，调用后恢复。
+- 将 A 股日线真实请求窗口限制为最近 180 天，避免为了 tail(5) 拉取全量历史。
+- 修复 AkShare probe 报告成功项二次联网采样 raw keys 导致的状态污染，改为使用本次成功样本的标准化字段键名。
+- 增加 probe retry：每个 capability 最多尝试 2 次，失败时记录最后一次异常和 attempts。
+- 重新运行真实 AkShare probe：AkShare `1.18.64` 已安装；A 股估值全部成功；最新报告中 `600519.SH` A 股日线成功，`000001.SZ`、`300750.SZ` 和三只港股日线仍被 Eastmoney 远端断开，已固化失败原因。多轮 probe 显示 Eastmoney 日线成功 ticker 存在波动。
+
+本次未做：
+
+- 未实现股票推荐。
+- 未实现候选评分。
+- 未实现回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 保留 AkShare 作为可用但不稳定的数据源；优先接入 Tushare 做 A 股日线和估值交叉验证，并继续跟踪 Eastmoney 日线端点的稳定性。
+
+## 2026-07-03
+
+本次完成：
+
+- 完成 AkShare 可选依赖配置：`pyproject.toml` 增加 `akshare = ["akshare"]`，保留 `dev = ["pytest>=8"]`。
+- 完成 AkShare 真实 provider probe 记录：本地安装 AkShare `1.18.64` 后运行 `scripts/probe_akshare.py`，生成 `outputs/reports/akshare_probe_report.md`。
+- 完成 `daily_bar.adjustment` 契约修正，允许 `none`、`qfq`、`hfq`、`forward`、`backward`、`unknown`，并要求 adapter 记录 provider 原始复权参数。
+- 完成字段映射和 quality_flags 修正：A 股估值接口调整为 `stock_zh_valuation_baidu`，新增/使用 `parse_error`、`unit_unverified`、`adjustment_unverified`、`provider_error`。
+- 真实 probe 结果显示：A 股估值样本可用，A 股/港股日线在当前网络代理下请求 Eastmoney 端点失败，已记录失败原因。
+
+本次未做：
+
+- 未实现股票推荐。
+- 未实现候选评分。
+- 未实现回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果 AkShare A 股日线和估值字段可用，则接入 Tushare 做 A 股交叉验证；如果日线仍不可用，则先修复 AkShare provider 的网络/接口可用性问题。
+
+## 2026-07-03
+
+本次完成：
+
 - 完成 AkShare 最小 provider 接入：`orchestrator/data/providers/akshare_provider.py`，支持 A 股 ticker、港股 ticker 映射，A 股日线、港股日线和 A 股估值样本函数。
 - 完成 AkShare probe 脚本：`scripts/probe_akshare.py`，生成 `outputs/reports/akshare_probe_report.md`，记录 success / failed / skipped、字段覆盖、quality_flags 和失败原因。
 - 完成 `docs/akshare_provider_notes.md`，记录 AkShare 使用目标、ticker mapping、接口名称、字段映射、风险和与 Tushare 交叉验证路径。
