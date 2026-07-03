@@ -6,6 +6,7 @@ REPORT_FILE="${REPORT_DIR}/latest.md"
 PYTEST_STATUS=0
 
 mkdir -p "${REPORT_DIR}"
+exec > >(tee "${REPORT_FILE}") 2>&1
 
 project_tree() {
   find . \
@@ -48,54 +49,53 @@ run_pytest_if_available() {
   fi
 }
 
-{
-  echo "# Alpha Research Stack Dev Check"
-  echo
-  echo "## Snapshot"
-  echo
-  echo "- 当前时间: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  echo "- 当前目录: $(pwd)"
-  echo "- git branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unavailable')"
-  echo
-  echo "## Git Status"
-  echo
-  echo '```text'
-  git status --short 2>/dev/null || echo "git status unavailable"
-  echo '```'
-  echo
-  echo "## Git Diff Stat"
-  echo
-  echo '```text'
-  git diff --stat 2>/dev/null || echo "git diff unavailable"
-  echo '```'
-  echo
-  echo "## Latest Commit"
-  echo
-  echo '```text'
-  git log -1 --oneline 2>/dev/null || echo "no commits"
-  echo '```'
-  echo
-  echo "## Project Tree"
-  echo
-  echo '```text'
-  project_tree
-  echo '```'
-  echo
-  echo "## Required Files"
-  echo
-  file_status "README.md"
-  file_status "AGENTS.md"
-  file_status "docs/progress.md"
-  file_status "docs/architecture.md"
-  file_status "docs/open_source_stack_audit.md"
-  echo
-  echo "## Tests"
-  echo
-  run_pytest_if_available
-  echo
-  echo "## ChatGPT Handoff"
-  echo
-  cat <<'HANDOFF'
+echo "# Alpha Research Stack Dev Check"
+echo
+echo "## Snapshot"
+echo
+echo "- 当前时间: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "- 当前目录: $(pwd)"
+echo "- git branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unavailable')"
+echo
+echo "## Git Status"
+echo
+echo '```text'
+git status --short 2>/dev/null || echo "git status unavailable"
+echo '```'
+echo
+echo "## Git Diff Stat"
+echo
+echo '```text'
+git diff --stat 2>/dev/null || echo "git diff unavailable"
+echo '```'
+echo
+echo "## Latest Commit"
+echo
+echo '```text'
+git log -1 --oneline 2>/dev/null || echo "no commits"
+echo '```'
+echo
+echo "## Project Tree"
+echo
+echo '```text'
+project_tree
+echo '```'
+echo
+echo "## Required Files"
+echo
+file_status "README.md"
+file_status "AGENTS.md"
+file_status "docs/progress.md"
+file_status "docs/architecture.md"
+file_status "docs/open_source_stack_audit.md"
+echo
+echo "## Tests"
+echo
+run_pytest_if_available
+echo
+echo "## ChatGPT Handoff"
+echo
+cat <<'HANDOFF'
 请审查这个 Alpha Research Stack 开发 Goal：
 
 - 仓库/PR 链接：
@@ -111,6 +111,5 @@ run_pytest_if_available() {
   - 是否避免了业务代码、密钥和不必要依赖
   - 是否需要补充测试、CI 或文档
 HANDOFF
-} | tee "${REPORT_FILE}"
 
 exit "${PYTEST_STATUS}"

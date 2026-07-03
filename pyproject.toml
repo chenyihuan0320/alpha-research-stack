@@ -1,0 +1,10 @@
+[project]
+name = "alpha-research-stack"
+version = "0.1.0"
+requires-python = ">=3.11"
+description = "Research infrastructure for high-confidence long/short signal workflows."
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
