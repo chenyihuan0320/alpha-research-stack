@@ -4,6 +4,33 @@
 
 本次完成：
 
+- 修复 A 股估值字段覆盖：`market_cap`、`pe`、`pb` 改为取 Baidu 估值序列的共同最新日期，避免三者日期不一致时静默合并。
+- 补充 A 股估值字段：从东财估值比较原始 JSON 补充 `ps`，并在可用时补充 `ev_ebitda`；银行样本 `000001.SZ` 当前缺 `ev_ebitda`。
+- 增加估算股息率：使用新浪分红明细近 365 日现金分红和最新日线 close 估算 `dividend_yield`，并标记 `estimated_value` 和单位/日期质量风险。
+- 明确 `fcf_yield` 不硬填：当前 AkShare 估值 provider 没有可靠自由现金流口径，继续标记缺失，等待后续财务现金流字段验证后计算。
+- 修复 provider 日期解析边界：`_to_date` 支持 `NaT`、`nan`、`--` 等 provider 空日期值，避免真实 probe 中分红明细解析崩溃。
+- 重新运行真实 AkShare probe：主 probe 结果保持 `success=9`、`failed=0`、`skipped=3`；A 股估值覆盖率提升到 `600519.SH=87.5%`、`000001.SZ=75.0%`、`300750.SZ=87.5%`。
+- 新增/更新不联网测试，覆盖共同日期合并、补充 `ps/ev_ebitda/dividend_yield`、银行样本缺 `EV/EBITDA` 时仍保留 `ps`、`NaT` 日期解析。
+
+本次未做：
+
+- 未接 Tushare。
+- 未实现股票推荐。
+- 未实现候选评分。
+- 未实现回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 接入 Tushare 或交易所/财报源做 A 股估值和自由现金流交叉验证；在验证 `operating_cash_flow`、资本开支和 market cap 口径前，不计算生产级 `fcf_yield`。
+
+## 2026-07-03
+
+本次完成：
+
 - 修复 AkShare/Eastmoney 日线 provider：在 AkShare Python requests 路径失败后，增加命令行 `curl` fallback，直接请求 Eastmoney kline JSON 并解析为同款日线字段。
 - 增加 Eastmoney host fallback：A 股/港股日线会尝试默认 host 和少量 `*.push2his.eastmoney.com` 变体，并在报告中保留每个 proxy mode / transport 的失败摘要。
 - 增加 AkShare/Sina 日线主路径：默认 `ARS_AKSHARE_DAILY_SOURCE_MODE=sina_first`，A 股使用 `stock_zh_a_daily`，港股使用 `stock_hk_daily`，Eastmoney 降为 fallback/诊断路径。

@@ -11,6 +11,8 @@ from orchestrator.data.providers.akshare_provider import (
     _call_eastmoney_provider,
     _eastmoney_direct_connection_env,
     _merge_valuation_indicator_rows,
+    _merge_valuation_comparison_row,
+    _to_date,
     _to_float,
     _valuation_from_row,
     ensure_eastmoney_no_proxy,
@@ -20,6 +22,7 @@ from orchestrator.data.providers.akshare_provider import (
     get_eastmoney_call_history,
     get_eastmoney_proxy_bypass_status,
     normalize_cn_ticker_for_akshare,
+    normalize_cn_ticker_for_eastmoney_symbol,
     normalize_cn_ticker_for_sina,
     normalize_hk_ticker_for_akshare,
     reset_eastmoney_call_history,
@@ -34,6 +37,11 @@ def test_normalize_cn_ticker_for_akshare() -> None:
 def test_normalize_cn_ticker_for_sina() -> None:
     assert normalize_cn_ticker_for_sina("600519.SH") == "sh600519"
     assert normalize_cn_ticker_for_sina("000001.SZ") == "sz000001"
+
+
+def test_normalize_cn_ticker_for_eastmoney_symbol() -> None:
+    assert normalize_cn_ticker_for_eastmoney_symbol("600519.SH") == "SH600519"
+    assert normalize_cn_ticker_for_eastmoney_symbol("000001.SZ") == "SZ000001"
 
 
 def test_normalize_hk_ticker_for_akshare() -> None:
@@ -56,6 +64,12 @@ def test_to_float_handles_common_provider_strings() -> None:
     assert _to_float("") is None
     assert _to_float("None") is None
     assert _to_float("nan") is None
+
+
+def test_to_date_handles_provider_nat_values() -> None:
+    assert _to_date("NaT") is None
+    assert _to_date("nan") is None
+    assert _to_date("--") is None
 
 
 def test_cn_daily_bar_adjustment_parameter_boundary() -> None:
@@ -295,3 +309,84 @@ def test_valuation_merge_marks_asof_mismatch_without_hiding_partial_coverage() -
     assert data["pb"] == 3.0
     assert any(flag.startswith("asof_mismatch:") for flag in data["quality_flags"])
     assert "partial_coverage:ps" in data["quality_flags"]
+
+
+def test_valuation_merge_uses_latest_common_date_when_available() -> None:
+    row = _merge_valuation_indicator_rows(
+        {
+            "market_cap": [
+                {"date": "2026-07-01", "value": "90", "_akshare_indicator": "总市值"},
+                {"date": "2026-07-02", "value": "100", "_akshare_indicator": "总市值"},
+            ],
+            "pe": [
+                {"date": "2026-07-02", "value": "20", "_akshare_indicator": "市盈率(TTM)"},
+                {"date": "2026-07-03", "value": "21", "_akshare_indicator": "市盈率(TTM)"},
+            ],
+            "pb": [
+                {"date": "2026-07-02", "value": "3", "_akshare_indicator": "市净率"},
+            ],
+        }
+    )
+    snapshot = _valuation_from_row(
+        ticker="600519.SH",
+        row=row,
+        source_updated_at=datetime(2026, 7, 3, tzinfo=UTC),
+    )
+    data = snapshot.to_dict()
+
+    assert data["date"] == "2026-07-02"
+    assert data["market_cap"] == 100.0
+    assert data["pe"] == 20.0
+    assert data["pb"] == 3.0
+    assert not any(flag.startswith("asof_mismatch:") for flag in data["quality_flags"])
+
+
+def test_valuation_snapshot_accepts_supplemental_ps_ev_and_estimated_dividend_yield() -> None:
+    row = {
+        "date": "2026-07-03",
+        "market_cap": "100",
+        "pe": "20",
+        "pb": "3",
+        "ps": "8.5",
+        "ev_ebitda": "15.2",
+        "dividend_yield": "2.4",
+        "_akshare_indicator_dates": {
+            "market_cap": "2026-07-03",
+            "pe": "2026-07-03",
+            "pb": "2026-07-03",
+            "ps": "unverified_current",
+            "ev_ebitda": "unverified_current",
+            "dividend_yield": "2026-07-03",
+        },
+    }
+
+    snapshot = _valuation_from_row(
+        ticker="600519.SH",
+        row=row,
+        source_updated_at=datetime(2026, 7, 3, tzinfo=UTC),
+    )
+    data = snapshot.to_dict()
+
+    assert data["ps"] == 8.5
+    assert data["ev_ebitda"] == 15.2
+    assert data["dividend_yield"] == 2.4
+    assert data["fcf_yield"] is None
+    assert "source_date_unverified:ps" in data["quality_flags"]
+    assert "source_date_unverified:ev_ebitda" in data["quality_flags"]
+    assert "estimated_value:dividend_yield" in data["quality_flags"]
+    assert "missing_field:fcf_yield" in data["quality_flags"]
+
+
+def test_valuation_comparison_keeps_ps_when_ev_ebitda_is_absent(monkeypatch) -> None:
+    merged = {"_akshare_indicator_dates": {}, "_akshare_indicator_names": {}}
+    monkeypatch.setattr(
+        ak_provider,
+        "_fetch_eastmoney_valuation_comparison_rows",
+        lambda _symbol: [{"CORRE_SECURITY_CODE": "000001", "PS_TTM": "1.25"}],
+    )
+
+    _merge_valuation_comparison_row(object(), "000001.SZ", merged)
+
+    assert merged["ps"] == "1.25"
+    assert "ev_ebitda" not in merged
+    assert merged["_akshare_indicator_dates"]["ps"] == "unverified_current"

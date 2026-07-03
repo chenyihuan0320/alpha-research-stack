@@ -63,6 +63,15 @@ def normalize_cn_ticker_for_sina(ticker: str) -> str:
     return f"{prefix}{match.group('code')}"
 
 
+def normalize_cn_ticker_for_eastmoney_symbol(ticker: str) -> str:
+    match = CN_TICKER_RE.fullmatch(ticker.upper())
+    if not match:
+        raise AkShareProviderError(
+            f"Invalid CN ticker '{ticker}'. Expected project format like 600519.SH or 000001.SZ."
+        )
+    return f"{match.group('exchange')}{match.group('code')}"
+
+
 def _load_akshare() -> Any:
     try:
         import akshare as ak  # type: ignore[import-not-found]
@@ -270,6 +279,16 @@ def _tail_records(frame: Any, limit: int = 5) -> list[dict[str, Any]]:
     return records
 
 
+def _records(frame: Any) -> list[dict[str, Any]]:
+    try:
+        records = frame.to_dict("records")
+    except Exception as exc:  # pragma: no cover - provider object dependent
+        raise AkShareProviderError(f"AkShare returned an unsupported table object: {exc}") from exc
+    if not isinstance(records, list):
+        raise AkShareProviderError("AkShare returned an unsupported table format.")
+    return records
+
+
 def _tail_raw_records(rows: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
     return rows[-limit:] if rows else []
 
@@ -300,6 +319,10 @@ def _to_float(value: Any) -> float | None:
 
 def _to_date(value: Any) -> date | None:
     if value is None or value == "":
+        return None
+    if value != value:
+        return None
+    if str(value).strip().lower() in {"nat", "nan", "none", "null", "--"}:
         return None
     if isinstance(value, datetime):
         return value.date()
@@ -358,13 +381,16 @@ VALUATION_FIELD_MAP = {
     "pe": ["pe", "pe_ttm", "市盈率(TTM)", "市盈率"],
     "pb": ["pb", "市净率"],
     "ps": ["ps", "ps_ttm", "市销率"],
+    "ev_ebitda": ["ev_ebitda", "EV/EBITDA-24A"],
     "dividend_yield": ["dividend_yield", "dv_ttm", "dv_ratio", "股息率"],
+    "fcf_yield": ["fcf_yield"],
 }
 VALUATION_INDICATOR_MAP = {
     "market_cap": "总市值",
     "pe": "市盈率(TTM)",
     "pb": "市净率",
 }
+VALUATION_SOURCE_DATE_UNVERIFIED_FIELDS = ("ps", "ev_ebitda")
 
 EASTMONEY_A_KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 EASTMONEY_HK_KLINE_URL = "https://33.push2his.eastmoney.com/api/qt/stock/kline/get"
@@ -829,14 +855,30 @@ def _latest_row(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     return rows[-1] if rows else None
 
 
+def _row_by_date(rows: list[dict[str, Any]], target_date: date) -> dict[str, Any] | None:
+    for row in rows:
+        if _to_date(row.get("date")) == target_date:
+            return row
+    return None
+
+
 def _merge_valuation_indicator_rows(
     indicator_rows: dict[str, list[dict[str, Any]]],
 ) -> dict[str, Any]:
     merged: dict[str, Any] = {}
     indicator_dates: dict[str, str] = {}
     indicator_names: dict[str, str] = {}
+    date_sets: list[set[date]] = []
+    for rows in indicator_rows.values():
+        parsed_dates = {_to_date(row.get("date")) for row in rows}
+        parsed_dates = {item for item in parsed_dates if item is not None}
+        if parsed_dates:
+            date_sets.append(parsed_dates)
+
+    common_dates = set.intersection(*date_sets) if date_sets else set()
+    aligned_date = max(common_dates) if common_dates else None
     for contract_field, rows in indicator_rows.items():
-        latest = _latest_row(rows)
+        latest = _row_by_date(rows, aligned_date) if aligned_date else _latest_row(rows)
         if not latest:
             continue
         row_date = latest.get("date")
@@ -847,11 +889,112 @@ def _merge_valuation_indicator_rows(
 
     parsed_dates = [_to_date(value) for value in indicator_dates.values()]
     parsed_dates = [item for item in parsed_dates if item is not None]
-    if parsed_dates:
+    if aligned_date:
+        merged["date"] = aligned_date
+        merged["_akshare_valuation_alignment"] = "latest_common_date"
+    elif parsed_dates:
         merged["date"] = max(parsed_dates)
+        merged["_akshare_valuation_alignment"] = "fallback_latest_per_indicator"
     merged["_akshare_indicator_dates"] = indicator_dates
     merged["_akshare_indicator_names"] = indicator_names
     return merged
+
+
+def _fetch_eastmoney_valuation_comparison_rows(symbol: str) -> list[dict[str, Any]]:
+    try:
+        import requests  # type: ignore[import-not-found]
+    except ImportError as exc:  # pragma: no cover - AkShare installs requests
+        raise AkShareProviderError("requests is required for Eastmoney valuation comparison.") from exc
+    url = "https://datacenter.eastmoney.com/securities/api/data/v1/get"
+    params = {
+        "reportName": "RPT_PCF10_INDUSTRY_CVALUE",
+        "columns": "ALL",
+        "quoteColumns": "",
+        "filter": f'(SECUCODE="{symbol[2:]}.{symbol[:2]}")',
+        "pageNumber": "",
+        "pageSize": "",
+        "sortTypes": "1",
+        "sortColumns": "PAIMING",
+        "source": "HSF10",
+        "client": "PC",
+    }
+    response = requests.get(url, params=params, timeout=15)
+    data_json = response.json()
+    data = data_json.get("result", {}).get("data", [])
+    if not isinstance(data, list):
+        raise AkShareProviderError("Eastmoney valuation comparison returned unsupported JSON.")
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _merge_valuation_comparison_row(ak: Any, ticker: str, merged: dict[str, Any]) -> None:
+    symbol = normalize_cn_ticker_for_eastmoney_symbol(ticker)
+    rows = _call_provider(
+        lambda: _fetch_eastmoney_valuation_comparison_rows(symbol),
+        f"CN valuation comparison {ticker}",
+    )
+    target_code = normalize_cn_ticker_for_akshare(ticker)
+    row = next(
+        (item for item in rows if str(item.get("CORRE_SECURITY_CODE") or item.get("SECURITY_CODE")) == target_code),
+        rows[0] if rows else None,
+    )
+    if not row:
+        return
+    if row.get("PS_TTM") not in (None, ""):
+        merged["ps"] = row.get("PS_TTM")
+    if row.get("QYBS") not in (None, ""):
+        merged["ev_ebitda"] = row.get("QYBS")
+    indicator_dates = merged.setdefault("_akshare_indicator_dates", {})
+    indicator_names = merged.setdefault("_akshare_indicator_names", {})
+    if isinstance(indicator_dates, dict):
+        for field in VALUATION_SOURCE_DATE_UNVERIFIED_FIELDS:
+            if field in merged:
+                indicator_dates[field] = "unverified_current"
+    if isinstance(indicator_names, dict):
+        if "ps" in merged:
+            indicator_names["ps"] = "stock_zh_valuation_comparison_em:市销率-TTM"
+        if "ev_ebitda" in merged:
+            indicator_names["ev_ebitda"] = "stock_zh_valuation_comparison_em:EV/EBITDA-24A"
+
+
+def _merge_estimated_dividend_yield(ak: Any, ticker: str, merged: dict[str, Any]) -> None:
+    symbol = normalize_cn_ticker_for_akshare(ticker)
+    dividend_frame = _call_provider(
+        lambda: ak.stock_history_dividend_detail(symbol=symbol, indicator="分红"),
+        f"CN dividend detail {ticker}",
+    )
+    dividend_rows = _records(dividend_frame)
+    daily_rows = _fetch_cn_daily_bar_raw(ticker, adjust="none")
+    latest_bar = _latest_row(daily_rows)
+    if not latest_bar:
+        return
+    close = _to_float(_first_present(latest_bar, DAILY_BAR_FIELD_MAP["close"]))
+    latest_date = _to_date(_first_present(latest_bar, DAILY_BAR_FIELD_MAP["date"]))
+    if close is None or close == 0 or latest_date is None:
+        return
+
+    trailing_start = latest_date - timedelta(days=365)
+    cash_dividend_total = 0.0
+    used_dates: list[str] = []
+    for row in dividend_rows:
+        ex_date = _to_date(row.get("除权除息日"))
+        cash_per_10 = _to_float(row.get("派息"))
+        if ex_date is None or cash_per_10 is None:
+            continue
+        if trailing_start <= ex_date <= latest_date:
+            cash_dividend_total += cash_per_10 / 10.0
+            used_dates.append(ex_date.isoformat())
+    if cash_dividend_total <= 0:
+        return
+
+    merged["dividend_yield"] = (cash_dividend_total / close) * 100.0
+    merged["_akshare_dividend_yield_method"] = "estimated_ttm_cash_dividend_per_share_over_latest_close"
+    merged["_akshare_dividend_yield_ex_dates"] = used_dates
+    indicator_dates = merged.setdefault("_akshare_indicator_dates", {})
+    indicator_names = merged.setdefault("_akshare_indicator_names", {})
+    if isinstance(indicator_dates, dict):
+        indicator_dates["dividend_yield"] = latest_date.isoformat()
+    if isinstance(indicator_names, dict):
+        indicator_names["dividend_yield"] = "stock_history_dividend_detail + stock_zh_a_daily close"
 
 
 def _fetch_cn_valuation_raw(ticker: str) -> list[dict[str, Any]]:
@@ -869,7 +1012,16 @@ def _fetch_cn_valuation_raw(ticker: str) -> list[dict[str, Any]]:
         for row in rows:
             row["_akshare_indicator"] = indicator
         indicator_rows[contract_field] = rows
-    return [_merge_valuation_indicator_rows(indicator_rows)]
+    merged = _merge_valuation_indicator_rows(indicator_rows)
+    try:
+        _merge_valuation_comparison_row(ak, ticker, merged)
+    except AkShareProviderError as exc:
+        merged.setdefault("_akshare_optional_errors", []).append(f"valuation_comparison:{_summarize_error(exc)}")
+    try:
+        _merge_estimated_dividend_yield(ak, ticker, merged)
+    except AkShareProviderError as exc:
+        merged.setdefault("_akshare_optional_errors", []).append(f"dividend_yield:{_summarize_error(exc)}")
+    return [merged]
 
 
 def fetch_raw_sample_keys(ticker: str, market: Market, capability: str) -> list[str]:
@@ -962,11 +1114,17 @@ def _valuation_from_row(
         if flag.startswith(f"{QualityFlag.MISSING_FIELD.value}:"):
             field = flag.split(":", 1)[1]
             flags.append(f"{QualityFlag.PARTIAL_COVERAGE.value}:{field}")
-    for unavailable in ("ev_ebitda", "fcf_yield"):
-        flags.append(f"{QualityFlag.MISSING_FIELD.value}:{unavailable}")
-        flags.append(f"{QualityFlag.PARTIAL_COVERAGE.value}:{unavailable}")
     flags.append(f"{QualityFlag.UNIT_UNVERIFIED.value}:market_cap")
-    flags.append(f"{QualityFlag.UNIT_UNVERIFIED.value}:dividend_yield")
+    for field in ("ps", "ev_ebitda"):
+        if row.get(field) is not None:
+            flags.append(f"source_date_unverified:{field}")
+    if row.get("dividend_yield") is not None:
+        flags.append(f"{QualityFlag.ESTIMATED_VALUE.value}:dividend_yield")
+        flags.append(f"{QualityFlag.UNIT_UNVERIFIED.value}:dividend_yield")
+    if row.get("_akshare_optional_errors"):
+        flags.append("optional_provider_error:" + ";".join(str(item) for item in row["_akshare_optional_errors"]))
+    if row.get("_akshare_valuation_alignment") == "fallback_latest_per_indicator":
+        flags.append(f"{QualityFlag.ASOF_MISMATCH.value}:fallback_latest_per_indicator")
 
     snapshot_date = _to_date(_first_present(row, VALUATION_FIELD_MAP["date"]))
     if snapshot_date is None:
@@ -974,7 +1132,12 @@ def _valuation_from_row(
         snapshot_date = source_updated_at.date()
     indicator_dates = row.get("_akshare_indicator_dates")
     if isinstance(indicator_dates, dict):
-        unique_dates = sorted({str(value) for value in indicator_dates.values() if value})
+        comparable_dates = {
+            str(value)
+            for value in indicator_dates.values()
+            if value and str(value) != "unverified_current"
+        }
+        unique_dates = sorted(comparable_dates)
         if len(unique_dates) > 1:
             flags.append(
                 f"{QualityFlag.ASOF_MISMATCH.value}:"
@@ -989,9 +1152,9 @@ def _valuation_from_row(
         pe=_parse_float_field(row, VALUATION_FIELD_MAP, "pe", flags),
         pb=_parse_float_field(row, VALUATION_FIELD_MAP, "pb", flags),
         ps=_parse_float_field(row, VALUATION_FIELD_MAP, "ps", flags),
-        ev_ebitda=None,
+        ev_ebitda=_parse_float_field(row, VALUATION_FIELD_MAP, "ev_ebitda", flags),
         dividend_yield=_parse_float_field(row, VALUATION_FIELD_MAP, "dividend_yield", flags),
-        fcf_yield=None,
+        fcf_yield=_parse_float_field(row, VALUATION_FIELD_MAP, "fcf_yield", flags),
         source="akshare",
         source_updated_at=source_updated_at,
         quality_flags=flags,
