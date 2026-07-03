@@ -7,5 +7,6 @@ __pycache__/
 .DS_Store
 outputs/**/*.parquet
 outputs/**/*.db
+outputs/dev_checks/
 data/cache/
 *.log
