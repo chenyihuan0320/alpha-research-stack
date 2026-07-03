@@ -4,6 +4,35 @@
 
 本次完成：
 
+- 完成 Tushare provider 框架：新增 A 股 ticker mapping、token 读取、import 状态、日线、估值、财务快照和交易日历 probe 入口。
+- 完成 Tushare probe：无 `TUSHARE_TOKEN` 时生成 `needs_credentials` 报告，不崩溃、不伪造数据。
+- 完成 AkShare vs Tushare comparison 框架：无 token 时生成 `pending_credentials` 报告，有 token 时按日线和估值字段做跨源差异记录。
+- 完成 `data_quality_gate`：对 `provider_error`、关键字段缺失、as-of mismatch、估算股息率、单位/复权未验证、跨源价格冲突和凭证缺失给出 `pass` / `warn` / `block` / `pending_credentials`。
+- 更新 Tushare provider notes、README、AGENTS 和数据契约，明确 token 规则、cross-source check 和质量门禁。
+- 真实 Tushare probe 已运行：Tushare `1.4.29` 安装成功，token 通过临时环境变量传入，未写入仓库或 `.env`。
+- Tushare 日线样本成功：3 个 A 股 ticker 的 `daily_bar` 可取，adapter 已将 `vol` 从手标准化为股、`amount` 从千元标准化为元，并保留 `unit_unverified`。
+- AkShare vs Tushare 日线交叉验证已按共同交易日和不复权口径对齐，`open/high/low/close/volume/amount` 当前差异为 0%，但仍因估值和单位确认未完成而不能进入候选发现层。
+- Tushare 估值 `daily_basic` 当前触发严格限频，报告记录为 provider failure；Tushare 财务报表接口当前 token 无 `income` 权限，fundamentals 暂不可用。
+
+本次未做：
+
+- 未实现股票推荐。
+- 未实现候选评分。
+- 未实现回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果 Tushare `daily_basic` 限频窗口释放且估值字段可验证，重新运行估值 cross-source comparison。
+- 如果当前 token 无法开放财报接口，寻找第二免费 A 股财务数据源或升级 Tushare 权限。
+
+## 2026-07-03
+
+本次完成：
+
 - 修复 A 股估值字段覆盖：`market_cap`、`pe`、`pb` 改为取 Baidu 估值序列的共同最新日期，避免三者日期不一致时静默合并。
 - 补充 A 股估值字段：从东财估值比较原始 JSON 补充 `ps`，并在可用时补充 `ev_ebitda`；银行样本 `000001.SZ` 当前缺 `ev_ebitda`。
 - 增加估算股息率：使用新浪分红明细近 365 日现金分红和最新日线 close 估算 `dividend_yield`，并标记 `estimated_value` 和单位/日期质量风险。

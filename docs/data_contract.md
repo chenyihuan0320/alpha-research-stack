@@ -13,11 +13,41 @@
 
 - `market` 必须使用 `CN`、`HK`、`US`。
 - `ticker` 使用项目内部标准 ticker，provider 专用格式必须在接入层转换。
+- 建议在 provider adapter 或 probe 报告中同时记录 `project_ticker` 和 `provider_ticker`，避免 `600519.SH`、`sh600519`、`600519` 等格式混淆。
+- 建议保存 `raw_field_mapping`，记录 provider 原始字段名到契约字段的映射，尤其是中文字段、单位字段和日期字段。
 - `source` 必须记录 provider 名称，例如 `akshare`、`tushare`、`edgartools`、`openbb`。
 - `source_updated_at` 记录该 provider 返回数据或本地缓存刷新的时间。
 - `quality_flags` 使用字符串列表记录缺失、解析失败、单位未验证、复权未验证、provider 异常、as-of 日期不一致、字段覆盖不完整、冲突、估算、复权未知、币种不明等质量问题。
 - 金额字段必须记录或可推导币种，不能混用人民币、港币和美元。
 - 所有跨源校验字段都不能在冲突时静默覆盖，必须保留来源和差异。
+
+## cross_source_check 与 data_quality_gate
+
+`cross_source_check` 是同一契约字段在两个或更多独立 provider 之间的对齐验证。最小记录应包含：
+
+- `project_ticker`
+- `provider_ticker`
+- `source`
+- `capability`
+- `contract_field`
+- `raw_field_mapping`
+- `source_date`
+- `value`
+- `unit`
+- `adjustment`
+- `diff_pct`
+- `quality_flags`
+
+`data_quality_gate` 只做数据质量判断，不做买卖决策。状态含义：
+
+| 状态 | 含义 | 后续处理 |
+| --- | --- | --- |
+| `pass` | 当前字段满足最小质量要求 | 可作为 provider evidence 进入后续层 |
+| `warn` | 字段可记录，但存在单位、日期、估算或缺失风险 | 不允许静默进入 production strategy，必须保留 warning |
+| `block` | 关键字段缺失、provider error 或跨源价格冲突 | 阻断进入候选发现或策略层 |
+| `pending_credentials` | 凭证缺失导致无法验证 | 不是代码失败，但不能伪造数据绕过 |
+ 
+跨源字段冲突时，必须记录冲突和差异百分比，不允许选择对策略结果有利的数据。
 
 ## security_master
 
@@ -279,3 +309,4 @@ JSON schema 风格：
 - ticker mapping 是否稳定。
 - 是否需要凭证、限频、缓存和许可证确认。
 - 与第二来源的冲突字段和处理策略。
+- `data_quality_gate` 的判断结果。

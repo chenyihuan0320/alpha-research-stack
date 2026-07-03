@@ -70,6 +70,17 @@ AkShare 的 A 股/港股日线默认使用新浪财经接口，配置为 `ARS_AK
 
 Eastmoney 诊断仍可通过 `ARS_AKSHARE_EASTMONEY_PROXY_MODE` 设置 `auto`、`respect_env_proxy` 或 `direct_no_proxy`；默认 `auto` 会先尊重当前环境代理，失败后再尝试直连。报告会记录 configured/effective proxy mode、`NO_PROXY` 和当前可见代理变量，便于比较代理与直连模式的差异。
 
+## 如何运行 Tushare Provider Probe
+
+```bash
+python -m pip install -e ".[dev,tushare]"
+export TUSHARE_TOKEN="..."
+python scripts/probe_tushare.py
+python scripts/compare_akshare_tushare.py
+```
+
+没有 `TUSHARE_TOKEN` 时，脚本会生成 `needs_credentials` / `pending_credentials` 报告，不会崩溃，也不会伪造数据。这些脚本只用于 provider validation，不是投资分析、股票推荐、候选评分、回测或交易系统。不要提交真实 token。
+
 ## 当前阶段
 
-已完成开源审计、数据契约和 dry-run provider probe。当前 AkShare 最小 provider 已改为新浪日线优先、Eastmoney 诊断/fallback，并已通过 A 股/港股日线和 A 股估值最小样本验证；下一步是接入 Tushare 做 A 股交叉验证。
+已完成开源审计、数据契约和 dry-run provider probe。当前 AkShare 最小 provider 已改为新浪日线优先、Eastmoney 诊断/fallback，并已通过 A 股/港股日线和 A 股估值最小样本验证；当前进入 Tushare 第二数据源和 AkShare vs Tushare 交叉验证阶段。

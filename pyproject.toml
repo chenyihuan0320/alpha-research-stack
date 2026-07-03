@@ -7,6 +7,7 @@ description = "Research infrastructure for high-confidence long/short signal wor
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 akshare = ["akshare"]
+tushare = ["tushare"]
 
 [tool.setuptools.packages.find]
 include = ["orchestrator*"]
