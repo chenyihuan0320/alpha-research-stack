@@ -162,6 +162,15 @@ Qlib 需要多 ticker、按日期展开的 panel 数据，而不是单条 Provid
 
 Qlib 只能消费 Qlib-compatible panel。ProviderEvidence block / pending 的字段不能进入 Qlib；summary-only evidence 也不能直接作为 Qlib runtime 输入。DailyBarPanel 必须保留 `provider_evidence_id`、`quality_flags` 和 `cross_source_status`，否则只能作为格式错误处理。
 
+vectorbt / fallback event baseline 只产生 `ValidationEvidence`。`ValidationEvidence` 记录事件日、持有期、forward return、MFE、MAE、来源 evidence 和质量标记；它不是 Signal，不是 Recommendation，也不能包含 final confidence。当前 DailyBarPanel 的 row-level `cross_source_status=unavailable`，因此事件验证只能说明时间维度验证流程可用，不能说明策略有效。
+
+进入真实信号前仍需要：
+
+- `CandidateEvidence` 作为被验证对象。
+- 更长历史窗口。
+- row-level AkShare / Tushare cross-source 校验或明确风险接受。
+- 单独的策略验证和 confidence calibration Goal。
+
 需要自建：
 
 - 多市场一致的信号验证标准。

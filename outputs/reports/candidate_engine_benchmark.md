@@ -1,7 +1,7 @@
 # Candidate Engine Benchmark
 
-- run_id: candidate-engine-benchmark-20260704T132118Z
-- generated_at: 2026-07-04T13:21:18.116519+00:00
+- run_id: candidate-engine-benchmark-20260704T134401Z
+- generated_at: 2026-07-04T13:44:01.759931+00:00
 - allowed_evidence_count: 3
 
 This benchmark does not run AlphaSift, Qlib, vectorbt, LLMs, or trading workflows.
@@ -10,7 +10,7 @@ This benchmark does not run AlphaSift, Qlib, vectorbt, LLMs, or trading workflow
 |---|---|---|---|---|---|---|---|---|
 | alphasift | candidate_engine_candidate | pending_runtime | ProviderEvidence:daily_bar, strategy_yaml, runtime_dependencies | CandidateEvidence | medium | medium | runtime dependency missing: yaml/PyYAML; input mapping still needs runtime proof | Prepare isolated AlphaSift runtime dependencies and rerun no-LLM validation. |
 | qlib | factor_model_research_backbone | dependency_missing_panel_ready | normalized daily_bar panel, feature store, labels | CandidateEvidence | high | high | Qlib dependency missing, but verified daily_bar panel is readable. | Install Qlib only if approved, then rerun runtime read validation. |
-| vectorbt_event_baseline | validation_baseline | ready | ProviderEvidence:daily_bar, event_dates | ValidationEvidence | low | baseline | not a discovery engine | Use only as event validation baseline after CandidateEvidence exists. |
+| vectorbt_event_baseline | validation_baseline | baseline_validated | ProviderEvidence:daily_bar, event_dates | ValidationEvidence | low | baseline | ValidationEvidence exists for vectorbt/fallback event baseline: count=3. | Use only as validation evidence; do not treat as candidate discovery or signal. |
 
 ## Boundary
 

@@ -154,6 +154,17 @@
 - Reuse Gate 边界：vectorbt 不直接消费 provider 原始数据，只消费 `allowed_downstream` 包含 `vectorbt` 的 ProviderEvidence。
 - 后续验证：安装可选依赖后，用已验证 A 股日线样本跑最小事件持有期验证。
 
+#### vectorbt event baseline 记录
+
+- 验证日期：2026-07-04。
+- 输入数据：`outputs/panels/cn_daily_bar_panel.csv`。
+- 输出数据：`outputs/validation/validation_evidence.jsonl` 和 `outputs/reports/vectorbt_event_baseline.md`。
+- 当前方式：如果 vectorbt 未安装，使用 `fallback_event_baseline` 计算 forward return、MFE、MAE；如果 vectorbt 已安装，本 Goal 也只记录最小事件验证边界，不运行 portfolio backtest。
+- 可复用结论：vectorbt event baseline 可作为验证层 baseline，但不是 candidate discovery engine。
+- 当前限制：DailyBarPanel 的 row-level `cross_source_status=unavailable`，验证结果只能证明流程可用，不能证明策略有效。
+- 禁止转换：`ValidationEvidence` 不能直接成为 Signal、Recommendation 或 final confidence。
+- 后续验证任务：需要真实 `CandidateEvidence`、更长历史窗口、row-level cross-source 校验和单独的策略/成本/置信度校准 Goal。
+
 ## 当前下一步
 
-根据 Candidate Engine Benchmark 和 Qlib runtime read validation，下一步三选一：准备 Qlib 依赖后重跑 runtime read；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence 或由它生成并可回溯的 DailyBarPanel。
+根据 Candidate Engine Benchmark、Qlib runtime read validation 和 vectorbt event baseline，下一步三选一：准备 Qlib 依赖后重跑 runtime read；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或在获得 CandidateEvidence 后把 ValidationEvidence 与候选证据关联。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence 或由它生成并可回溯的 DailyBarPanel。

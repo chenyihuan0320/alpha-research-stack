@@ -4,6 +4,37 @@
 
 本次完成：
 
+- 完成 vectorbt Event Validation Baseline：新增 `orchestrator/validation/models.py`、`orchestrator/validation/ledger.py`、`orchestrator/adapters/vectorbt_event_adapter.py` 和 `scripts/run_vectorbt_event_baseline.py`。
+- 建立 `ValidationEvidence` 契约和 JSONL ledger，明确它不是 Signal、Recommendation 或 final confidence。
+- 基于 DailyBarPanel 生成每个 ticker 的最小事件验证输入，fallback 计算 `forward_return`、`max_favorable_excursion` 和 `max_adverse_excursion`。
+- 未安装 vectorbt 时使用 `fallback_event_baseline`，并保留 `vectorbt_dependency_missing`、`cross_source_panel_unavailable` 等质量标记。
+- 生成 `outputs/validation/validation_evidence.jsonl` 和 `outputs/reports/vectorbt_event_baseline.md`。
+- 更新 Candidate Engine Benchmark：如果 ValidationEvidence 存在，`vectorbt_event_baseline` 状态推进到 `baseline_validated`；仍不是 candidate discovery engine。
+- 新增测试覆盖 ValidationEvidence round trip、ledger、fallback 收益/MFE/MAE、insufficient history、vectorbt 缺依赖 fallback、脚本产出和 benchmark 状态更新。
+
+本次未做：
+
+- 未安装 vectorbt。
+- 未运行完整回测。
+- 未做 portfolio simulation。
+- 未做交易成本建模。
+- 未做策略优化。
+- 未生成股票推荐。
+- 未生成 final signal。
+- 未生成 confidence。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 真实信号前必须先有 CandidateEvidence，并补 row-level cross-source panel 校验或明确接受风险。
+- 如果要进入更严肃验证，需要扩大历史窗口，再单独设计 vectorbt / Qlib runtime validation Goal。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 Qlib minimal runtime read validation：新增 `orchestrator/adapters/qlib_runtime_adapter.py` 和 `scripts/validate_qlib_runtime_read.py`。
 - 对 `outputs/panels/cn_daily_bar_panel.csv` 做 CSV schema、shape、traceability fields 和 Qlib dependency 检查。
 - 生成 `outputs/reports/qlib_runtime_read_validation.md`，用于记录 `qlib_runtime_read`、`qlib_available`、`panel_readable`、读取行数、ticker 和日期范围。

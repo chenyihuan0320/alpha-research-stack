@@ -19,11 +19,13 @@ from orchestrator.panels.daily_bar_panel import (  # noqa: E402
     REQUIRED_PANEL_FIELDS,
     load_daily_bar_panel_csv,
 )
+from orchestrator.validation.ledger import load_validations  # noqa: E402
 
 
 EVIDENCE_PATH = Path("outputs/evidence/provider_evidence.jsonl")
 PANEL_PATH = Path("outputs/panels/cn_daily_bar_panel.csv")
 QLIB_RUNTIME_REPORT_PATH = Path("outputs/reports/qlib_runtime_read_validation.md")
+VALIDATION_LEDGER_PATH = Path("outputs/validation/validation_evidence.jsonl")
 REPORT_PATH = Path("outputs/reports/candidate_engine_benchmark.md")
 BENCHMARK_ENGINE_NAMES = ["alphasift", "qlib", "vectorbt_event_baseline"]
 
@@ -120,6 +122,25 @@ def _qlib_status_and_blocker(
     )
 
 
+def _vectorbt_status_and_blocker(
+    validation_ledger_path: str | Path,
+    report_path: str | Path,
+) -> tuple[str, str, str] | None:
+    use_default_validation_ledger = (
+        Path(validation_ledger_path) == VALIDATION_LEDGER_PATH and Path(report_path) == REPORT_PATH
+    )
+    if Path(validation_ledger_path) == VALIDATION_LEDGER_PATH and not use_default_validation_ledger:
+        return None
+    validations = load_validations(validation_ledger_path)
+    if not validations:
+        return None
+    return (
+        "baseline_validated",
+        f"ValidationEvidence exists for vectorbt/fallback event baseline: count={len(validations)}.",
+        "Use only as validation evidence; do not treat as candidate discovery or signal.",
+    )
+
+
 def _write_report(result: dict[str, Any], report_path: Path) -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -161,6 +182,7 @@ def benchmark_candidate_engines(
     evidence_path: str | Path = EVIDENCE_PATH,
     panel_path: str | Path = PANEL_PATH,
     qlib_runtime_report_path: str | Path = QLIB_RUNTIME_REPORT_PATH,
+    validation_ledger_path: str | Path = VALIDATION_LEDGER_PATH,
     report_path: str | Path = REPORT_PATH,
 ) -> dict[str, Any]:
     evidence_rows = load_evidence(evidence_path)
@@ -181,6 +203,10 @@ def benchmark_candidate_engines(
                 panel_path,
                 qlib_runtime_report_path,
             )
+        elif engine.engine_name == "vectorbt_event_baseline":
+            vectorbt_status = _vectorbt_status_and_blocker(validation_ledger_path, report_path)
+            if vectorbt_status is not None:
+                status, blocker, next_action = vectorbt_status
         rows.append(
             {
                 "engine": engine.engine_name,
