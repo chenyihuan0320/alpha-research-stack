@@ -7,6 +7,7 @@ the data contract boundary that future provider evidence must pass through.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any
 
 
@@ -49,20 +50,60 @@ def _allowed_downstream(value: Any) -> list[str]:
     return [str(item) for item in (items or [])]
 
 
+def _evidence_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "to_dict"):
+        return dict(value.to_dict())
+    return {
+        key: getattr(value, key)
+        for key in (
+            "evidence_id",
+            "run_id",
+            "market",
+            "ticker",
+            "data_domain",
+            "source_updated_at",
+            "observed_at",
+            "normalized_payload",
+            "raw_field_mapping",
+            "quality_flags",
+            "gate_status",
+            "allowed_downstream",
+        )
+        if hasattr(value, key)
+    }
+
+
+def _candidate_date_from_evidence(evidence: dict[str, Any]) -> str:
+    value = evidence.get("observed_at") or evidence.get("source_updated_at") or ""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value)
+    if "T" in text:
+        return text.split("T", 1)[0]
+    return text[:10]
+
+
 def can_send_to_alphasift(evidence: Any) -> bool:
     return bool(ALPHASIFT_DOWNSTREAM_NAMES & set(_allowed_downstream(evidence)))
 
 
-def build_alphasift_input(evidence: dict[str, Any]) -> AlphaSiftCandidateInput:
-    if not can_send_to_alphasift(evidence):
+def build_alphasift_input(evidence: Any) -> AlphaSiftCandidateInput:
+    data = _evidence_dict(evidence)
+    if data.get("data_domain") != "daily_bar":
+        raise ValueError("AlphaSift adapter only accepts daily_bar ProviderEvidence.")
+    if not can_send_to_alphasift(data):
         raise ValueError("Evidence is not allowed_downstream for AlphaSift.")
     return AlphaSiftCandidateInput(
-        run_id=str(evidence["run_id"]),
-        market=str(evidence["market"]),
-        ticker=str(evidence["ticker"]),
-        candidate_date=str(evidence["candidate_date"]),
-        provider_evidence=dict(evidence.get("provider_evidence", {})),
-        quality_gate_status=str(evidence.get("quality_gate_status", "")),
+        run_id=str(data["run_id"]),
+        market=str(data["market"]),
+        ticker=str(data["ticker"]),
+        candidate_date=_candidate_date_from_evidence(data),
+        provider_evidence=data,
+        quality_gate_status=str(data.get("gate_status", "")),
     )
 
 

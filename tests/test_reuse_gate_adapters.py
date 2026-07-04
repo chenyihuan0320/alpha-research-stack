@@ -69,12 +69,14 @@ def test_can_send_to_vectorbt_allows_warn_and_pass() -> None:
 def test_build_vectorbt_input_rejects_blocked_daily_bars() -> None:
     with pytest.raises(ValueError):
         build_vectorbt_input(
-            ticker="600519.SH",
-            market="CN",
-            daily_bars=[],
-            event_dates=[],
-            holding_period=5,
-            quality_gate_status="pending_credentials",
+            {
+                "ticker": "600519.SH",
+                "market": "CN",
+                "data_domain": "daily_bar",
+                "normalized_payload": {"daily_bars": []},
+                "gate_status": "pending_credentials",
+                "allowed_downstream": [],
+            }
         )
 
 

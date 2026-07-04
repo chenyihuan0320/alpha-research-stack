@@ -66,10 +66,23 @@
 ### 候选发现
 
 - 已评估项目：AlphaSift。
-- 当前结论：先做 adapter skeleton 和输入/输出契约；在 `data_quality_gate` 放行 provider evidence 前，不运行候选发现。
+- 当前结论：已完成 ProviderEvidence -> AlphaSift adapter 输入边界和本地 AlphaSift 静态复用验证；尚未执行 AlphaSift runtime，不生成候选。
 - 不自建原因：AlphaSift 已覆盖 YAML strategy、全市场筛选、run 保存和 T+N evaluation 的候选发现核心形态。
 - Reuse Gate 边界：AlphaSift 不直接消费 provider 原始数据，只消费 `allowed_downstream` 包含 `alphasift` 或 `alphasift_exploratory` 的 ProviderEvidence。
-- 后续验证：允许 clone/安装后运行 AlphaSift no-LLM quickstart，并把输出保存为 `candidate_evidence`。
+- 后续验证：安装或运行本地 AlphaSift 后，执行 no-LLM quickstart / screen，并把真实输出保存为 `CandidateEvidence`。
+
+#### AlphaSift 复用验证记录
+
+- 已评估项目：AlphaSift。
+- 验证日期：2026-07-04。
+- 验证方式：读取 `outputs/evidence/provider_evidence.jsonl`，筛选 CN `daily_bar` 且 `allowed_downstream` 包含 `alphasift_exploratory` 的 evidence；静态检查本地 `references/alphasift` 的 README、`pyproject.toml` 和 CLI。
+- 输入/输出契约：输入为 `ProviderEvidence` / `ProviderEvidence.to_dict()`；输出目标为 `CandidateEvidence`，但本次未产生真实候选输出。
+- 数据质量门禁：只允许 `daily_bar` evidence 进入 AlphaSift adapter；`valuation` / `fundamentals` block 不得进入。
+- 可复用模块：AlphaSift 的 CLI、`screen --no-llm` 路径、YAML strategy 机制、run 保存和 T+N evaluation 设计。
+- 不能直接复用原因：本次未执行 runtime，尚未验证 AlphaSift 输入文件能由本项目 ProviderEvidence 直接生成；港股/美股支持仍需后续验证。
+- 复用的设计：候选发现作为可审计 run；候选输出必须落为 `CandidateEvidence`，不能直接成为 signal。
+- 自建范围如何最小化：本项目只维护 adapter、CandidateEvidence 契约和 ledger，不自建筛选器。
+- 后续验证任务：在隔离环境运行 `alphasift screen <strategy> --no-llm`，确认真实输出字段和 `CandidateEvidence` 映射。
 
 ### 轻量验证
 
@@ -81,4 +94,4 @@
 
 ## 当前下一步
 
-必须先生成 Provider Evidence Ledger，把已验证 daily_bar 和被阻断 valuation / fundamentals 分开存储；再决定是否做 AlphaSift no-LLM 最小验证或 vectorbt 最小事件验证。
+如果继续候选发现复用验证，下一步是在隔离环境中执行 AlphaSift no-LLM runtime，并把真实输出映射为 `CandidateEvidence`；如果暂不运行 AlphaSift，则可先做 vectorbt 最小事件验证，但仍只能消费 `allowed_downstream` 放行后的 ProviderEvidence。

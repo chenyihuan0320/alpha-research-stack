@@ -1,0 +1,3 @@
+[submodule "references/alphasift"]
+	path = references/alphasift
+	url = https://github.com/ZhuLinsen/alphasift.git

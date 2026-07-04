@@ -4,6 +4,32 @@
 
 本次完成：
 
+- 完成 AlphaSift no-LLM reuse validation attempt：新增 `scripts/validate_alphasift_reuse.py`，只读取 ProviderEvidence 和本地 AlphaSift 引用，不联网 clone、不安装依赖、不执行筛选。
+- 修正 AlphaSift adapter 边界：`build_alphasift_input` 现在消费 `ProviderEvidence` / `ProviderEvidence.to_dict()`，只接受 `daily_bar` 且 `allowed_downstream` 包含 `alphasift` 或 `alphasift_exploratory` 的 evidence。
+- 修正 vectorbt adapter 边界：`build_vectorbt_input` 不再根据 `quality_gate_status` 自动放行，只能消费 `allowed_downstream` 包含 `vectorbt` 的 ProviderEvidence。
+- 建立 `CandidateEvidence` 数据契约和 JSONL ledger：新增 `orchestrator/candidates/models.py` 与 `orchestrator/candidates/ledger.py`。
+- 重新生成 Provider Evidence Ledger，并完成 AlphaSift reuse validation 报告：本地 `references/alphasift` 存在，静态识别到 Apache-2.0、CLI 入口和 `screen --no-llm`，但未执行 runtime。
+- 本次未生成 `CandidateEvidence`，因为没有运行真实 AlphaSift no-LLM 输出；没有伪造候选。
+
+本次未做：
+
+- 未做股票推荐。
+- 未生成最终 signal。
+- 未做 confidence。
+- 未做回测。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果继续 AlphaSift 复用验证，则在隔离环境安装或运行本地 AlphaSift，执行 `alphasift screen <strategy> --no-llm`，并把真实输出映射为 `CandidateEvidence`。
+- 如果暂不运行 AlphaSift runtime，则可先做 vectorbt 最小事件验证，但仍只能消费 `allowed_downstream` 放行后的 ProviderEvidence。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 Provider Evidence Ledger：新增 `ProviderEvidence` 模型、本地 JSONL ledger 和 evidence summary 报告脚本。
 - 完成 domain-level quality gate：将 `daily_bar`、`valuation`、`fundamentals`、`event/news` 分域计算 gate status 和 `allowed_downstream`。
 - 完成 `outputs/reports/provider_evidence_summary.md` 生成路径，明确每个 ticker / domain 的 gate、放行下游和阻断原因。

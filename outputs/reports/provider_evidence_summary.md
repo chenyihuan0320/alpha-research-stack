@@ -1,6 +1,6 @@
 # Provider Evidence Summary
 
-- 运行时间: 2026-07-04T11:07:36.290037+00:00
+- 运行时间: 2026-07-04T11:21:48.540504+00:00
 - scope: CN sample universe, domain-level provider evidence
 - note: This is not candidate discovery, not a stock recommendation, not a backtest, and not trading output.
 
