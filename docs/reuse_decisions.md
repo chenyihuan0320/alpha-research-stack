@@ -104,7 +104,7 @@
 当前角色边界：
 
 - AlphaSift：`candidate_engine_candidate`，状态为 `pending_runtime`。适合轻量候选发现和 YAML strategy 验证，但 runtime 仍被依赖缺失阻断。
-- Qlib：`factor_model_research_backbone`，状态为 `planned`。用于长期因子 / 模型研究主干，下一步需要验证 Qlib 数据格式 feasibility。
+- Qlib：`factor_model_research_backbone`，当前状态为 `blocked_by_panel_data`。用于长期因子 / 模型研究主干，但当前 ProviderEvidence 只有 summary，不是 Qlib-ready panel。
 - vectorbt：`validation_baseline`，状态为 `ready`。只做事件/规则验证 baseline，不是 candidate discovery 主引擎。
 - OpenBB / EdgarTools：research / data input，只提供数据和研究输入，不作为 candidate generator。
 - TradingAgents / FinRobot：deep research / report structure 参考，不是 signal source。
@@ -116,6 +116,16 @@
 - Benchmark 只评估 readiness，不运行 AlphaSift、Qlib 或 vectorbt，不生成候选。
 - 如果选择自建候选发现器，必须先证明上述候选引擎不能满足最小复用路径，并记录失败原因。
 
+#### Qlib data format feasibility 记录
+
+- 验证日期：2026-07-04。
+- 输入数据：`outputs/evidence/provider_evidence.jsonl` 中 CN `daily_bar` ProviderEvidence，共 3 条 eligible evidence。
+- 当前是否 Qlib-ready：否，`qlib_runtime_ready=no`。
+- 当前状态：`partial`。必需字段 `date,ticker,open,high,low,close,volume` 在字段语义层面可识别，但没有完整 `daily_bars` 时间序列 panel。
+- 缺什么字段/格式：缺 Qlib-compatible 多日期 panel、特征/标签生成规则、Dataset Builder、以及 runtime 读取验证。
+- 是否值得继续引入 Qlib：值得。Qlib 的长期价值在因子 / 模型研究、数据集管理和系统化验证，不应被短期 summary-only evidence 阻断。
+- 为什么 Qlib 是长期主干而不是短期候选器：Qlib 需要稳定、宽表/长表 panel 和严格实验配置；短期应先构建 verified daily_bar panel，再做 minimal runtime validation，不应直接拿 ProviderEvidence summary 训练或筛选。
+
 ### 轻量验证
 
 - 已评估项目：vectorbt。
@@ -126,4 +136,4 @@
 
 ## 当前下一步
 
-根据 Candidate Engine Benchmark，下一步三选一：补齐 AlphaSift runtime 依赖继续 no-LLM 验证；先做 Qlib data format feasibility；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence。
+根据 Candidate Engine Benchmark 和 Qlib feasibility，下一步三选一：构建 verified daily_bar panel builder；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence。

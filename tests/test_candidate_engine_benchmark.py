@@ -42,7 +42,7 @@ def test_candidate_engine_benchmark_report_is_generated_without_running_engines(
 
     assert result["engine_count"] == 3
     assert "| alphasift | candidate_engine_candidate | pending_runtime |" in report
-    assert "| qlib | factor_model_research_backbone | planned |" in report
+    assert "| qlib | factor_model_research_backbone | blocked_by_panel_data |" in report
     assert "| vectorbt_event_baseline | validation_baseline | ready |" in report
     assert "Not run by this benchmark" in report
     assert "stock recommendation" not in report.lower()

@@ -4,6 +4,34 @@
 
 本次完成：
 
+- 完成 Qlib data format feasibility：新增 `orchestrator/adapters/qlib_adapter.py` 和 `scripts/check_qlib_data_feasibility.py`。
+- 明确 Qlib 最小 daily_bar 字段需求：`date`、`ticker`、`open`、`high`、`low`、`close`、`volume`；可选字段包括 `amount`、`factor`、`vwap`、`turnover`、`adj_factor`、`industry`、`market_cap`、`label`。
+- 生成 `outputs/reports/qlib_data_feasibility.md`：当前 `feasibility_status=partial`，`qlib_runtime_ready=no`，eligible CN daily_bar evidence 为 3 条。
+- 更新 Candidate Engine Benchmark：Qlib 状态从 planned 调整为 `blocked_by_panel_data`，原因是当前 ProviderEvidence 只有 cross-source matched summary，没有完整 daily_bars panel。
+- 新增测试覆盖 daily_bar 准入、valuation/fundamentals 拒绝、summary-only partial、mock full daily_bars feasible、benchmark 使用 Qlib feasibility 状态。
+
+本次未做：
+
+- 未安装 Qlib。
+- 未运行 Qlib。
+- 未训练模型。
+- 未生成 CandidateEvidence。
+- 未生成股票推荐。
+- 未生成 final signal。
+- 未生成 confidence。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果继续 Qlib 路线，先做 verified daily_bar panel builder。
+- 如果 panel 数据可行，再做 Qlib minimal runtime validation，仍不训练模型。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 Candidate Engine Benchmark 设计：新增 `orchestrator/candidates/engine.py`、`orchestrator/candidates/engine_registry.py` 和 `scripts/benchmark_candidate_engines.py`。
 - 明确 AlphaSift 降级为候选引擎之一：当前角色为 `candidate_engine_candidate`，状态为 `pending_runtime`，不是唯一候选发现主干。
 - 明确 Qlib / vectorbt / OpenBB / TradingAgents 的角色边界：Qlib 是长期因子 / 模型研究主干，vectorbt 是验证 baseline，OpenBB 是数据/研究输入，TradingAgents 是深度研究结构参考。

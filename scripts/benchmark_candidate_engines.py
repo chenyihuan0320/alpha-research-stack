@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 from orchestrator.candidates.engine import compare_candidate_engines  # noqa: E402
 from orchestrator.candidates.engine_registry import get_candidate_engine  # noqa: E402
 from orchestrator.evidence.ledger import load_evidence  # noqa: E402
+from orchestrator.adapters.qlib_adapter import evaluate_qlib_data_format_feasibility  # noqa: E402
 
 
 EVIDENCE_PATH = Path("outputs/evidence/provider_evidence.jsonl")
@@ -28,6 +29,27 @@ def _allowed_evidence(rows: list[Any]) -> list[Any]:
 def _supported_inputs(engine_name: str) -> str:
     engine = get_candidate_engine(engine_name)
     return ", ".join(engine.required_inputs)
+
+
+def _qlib_status_and_blocker(allowed_rows: list[Any]) -> tuple[str, str, str]:
+    feasibility = evaluate_qlib_data_format_feasibility(allowed_rows)
+    if feasibility.status == "feasible":
+        return (
+            "ready_for_runtime_validation",
+            "Qlib-compatible daily_bar panel fields are present; runtime still not executed.",
+            "Run Qlib minimal runtime validation without model training.",
+        )
+    if "time_series_panel_missing" in feasibility.warnings:
+        return (
+            "blocked_by_panel_data",
+            "Qlib requires panel daily_bars; current ProviderEvidence is summary-level.",
+            "Build verified daily_bar panel before Qlib runtime validation.",
+        )
+    return (
+        "blocked_by_panel_data",
+        "Qlib data format feasibility is blocked by missing required fields or eligible evidence.",
+        feasibility.next_action,
+    )
 
 
 def _write_report(result: dict[str, Any], report_path: Path) -> None:
@@ -80,17 +102,22 @@ def benchmark_candidate_engines(
     rows: list[dict[str, str]] = []
     for readiness in benchmark.results:
         engine = get_candidate_engine(readiness.engine_name)
+        status = readiness.status
+        blocker = engine.current_blocker
+        next_action = readiness.next_action
+        if engine.engine_name == "qlib":
+            status, blocker, next_action = _qlib_status_and_blocker(allowed_rows)
         rows.append(
             {
                 "engine": engine.engine_name,
                 "role": engine.role,
-                "status": readiness.status,
+                "status": status,
                 "supported_inputs": _supported_inputs(engine.engine_name),
                 "expected_output": readiness.output_contract,
                 "integration_cost": engine.integration_cost,
                 "accuracy_potential": engine.accuracy_potential,
-                "current_blocker": engine.current_blocker,
-                "next_action": readiness.next_action,
+                "current_blocker": blocker,
+                "next_action": next_action,
             }
         )
     result = {
