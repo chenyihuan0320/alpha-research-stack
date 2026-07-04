@@ -20,12 +20,14 @@ from orchestrator.panels.daily_bar_panel import (  # noqa: E402
     load_daily_bar_panel_csv,
 )
 from orchestrator.validation.ledger import load_validations  # noqa: E402
+from orchestrator.validation.linkage_ledger import load_links  # noqa: E402
 
 
 EVIDENCE_PATH = Path("outputs/evidence/provider_evidence.jsonl")
 PANEL_PATH = Path("outputs/panels/cn_daily_bar_panel.csv")
 QLIB_RUNTIME_REPORT_PATH = Path("outputs/reports/qlib_runtime_read_validation.md")
 VALIDATION_LEDGER_PATH = Path("outputs/validation/validation_evidence.jsonl")
+LINKAGE_LEDGER_PATH = Path("outputs/validation/candidate_validation_links.jsonl")
 REPORT_PATH = Path("outputs/reports/candidate_engine_benchmark.md")
 BENCHMARK_ENGINE_NAMES = ["alphasift", "qlib", "vectorbt_event_baseline"]
 
@@ -124,6 +126,7 @@ def _qlib_status_and_blocker(
 
 def _vectorbt_status_and_blocker(
     validation_ledger_path: str | Path,
+    linkage_ledger_path: str | Path,
     report_path: str | Path,
 ) -> tuple[str, str, str] | None:
     use_default_validation_ledger = (
@@ -134,9 +137,30 @@ def _vectorbt_status_and_blocker(
     validations = load_validations(validation_ledger_path)
     if not validations:
         return None
+    use_default_linkage_ledger = (
+        Path(linkage_ledger_path) == LINKAGE_LEDGER_PATH and Path(report_path) == REPORT_PATH
+    )
+    links = (
+        load_links(linkage_ledger_path)
+        if use_default_linkage_ledger or Path(linkage_ledger_path) != LINKAGE_LEDGER_PATH
+        else []
+    )
+    linked_records = [link for link in links if link.linkage_status == "linked"]
+    if linked_records:
+        return (
+            "candidate_validation_linked",
+            f"CandidateValidationLink records connect candidates to validations: count={len(linked_records)}.",
+            "Use linked ValidationEvidence only as research validation; do not treat as signal.",
+        )
+    orphan_links = [link for link in links if link.linkage_status == "missing_candidate"]
+    orphan_note = (
+        f" validation_orphaned_no_candidate={len(orphan_links)}."
+        if orphan_links
+        else " validation_orphaned_no_candidate; no CandidateValidationLink records found."
+    )
     return (
         "baseline_validated",
-        f"ValidationEvidence exists for vectorbt/fallback event baseline: count={len(validations)}.",
+        f"ValidationEvidence exists for vectorbt/fallback event baseline: count={len(validations)}.{orphan_note}",
         "Use only as validation evidence; do not treat as candidate discovery or signal.",
     )
 
@@ -183,6 +207,7 @@ def benchmark_candidate_engines(
     panel_path: str | Path = PANEL_PATH,
     qlib_runtime_report_path: str | Path = QLIB_RUNTIME_REPORT_PATH,
     validation_ledger_path: str | Path = VALIDATION_LEDGER_PATH,
+    linkage_ledger_path: str | Path = LINKAGE_LEDGER_PATH,
     report_path: str | Path = REPORT_PATH,
 ) -> dict[str, Any]:
     evidence_rows = load_evidence(evidence_path)
@@ -204,7 +229,11 @@ def benchmark_candidate_engines(
                 qlib_runtime_report_path,
             )
         elif engine.engine_name == "vectorbt_event_baseline":
-            vectorbt_status = _vectorbt_status_and_blocker(validation_ledger_path, report_path)
+            vectorbt_status = _vectorbt_status_and_blocker(
+                validation_ledger_path,
+                linkage_ledger_path,
+                report_path,
+            )
             if vectorbt_status is not None:
                 status, blocker, next_action = vectorbt_status
         rows.append(

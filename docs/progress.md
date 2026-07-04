@@ -4,6 +4,33 @@
 
 本次完成：
 
+- 完成 Candidate-Validation Linkage Design：新增 `orchestrator/validation/linkage.py`、`orchestrator/validation/linkage_ledger.py` 和 `scripts/build_candidate_validation_links.py`。
+- 建立 `CandidateValidationLink` 契约和 JSONL ledger，支持 `linked`、`pending_validation`、`missing_candidate` 和 `missing_validation` 状态。
+- 定义候选进入验证层的关系：`CandidateEvidence` 是候选发现输出，`ValidationEvidence` 是历史 / 事件验证输出，`CandidateValidationLink` 只是二者的连接关系。
+- 当前已有 baseline `ValidationEvidence`，但没有真实 `CandidateEvidence`；linkage builder 会记录 `validation_orphaned_no_candidate`，不会伪造候选。
+- 更新 Candidate Engine Benchmark：有 `ValidationEvidence` 但无 linked record 时，vectorbt 保持 `baseline_validated` 并注明 orphan；存在 linked record 时才推进到 `candidate_validation_linked`。
+- 新增测试覆盖 candidate + validation 同 ticker/date 的 linked、validation without candidate 的 orphan、candidate without validation 的 pending、link ledger summary 和 benchmark 状态联动。
+
+本次未做：
+
+- 未生成 CandidateEvidence。
+- 未生成股票推荐。
+- 未生成 final signal。
+- 未生成 confidence。
+- 未接 LLM。
+- 未运行新的 vectorbt / Qlib / AlphaSift runtime。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果 AlphaSift / Qlib / 其他候选引擎生成真实 `CandidateEvidence`，重新运行 `scripts/build_candidate_validation_links.py`，把候选与验证证据关联起来。
+- 当前 baseline `ValidationEvidence` 没有 candidate 父级，不能用于信号判断。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 vectorbt Event Validation Baseline：新增 `orchestrator/validation/models.py`、`orchestrator/validation/ledger.py`、`orchestrator/adapters/vectorbt_event_adapter.py` 和 `scripts/run_vectorbt_event_baseline.py`。
 - 建立 `ValidationEvidence` 契约和 JSONL ledger，明确它不是 Signal、Recommendation 或 final confidence。
 - 基于 DailyBarPanel 生成每个 ticker 的最小事件验证输入，fallback 计算 `forward_return`、`max_favorable_excursion` 和 `max_adverse_excursion`。

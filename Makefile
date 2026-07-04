@@ -1,7 +1,10 @@
-.PHONY: check status progress tree
+.PHONY: check status progress tree push-github
 
 check:
 	./scripts/dev_check.sh
+
+push-github:
+	./scripts/push_to_github.sh
 
 status:
 	git status --short

@@ -165,6 +165,16 @@
 - 禁止转换：`ValidationEvidence` 不能直接成为 Signal、Recommendation 或 final confidence。
 - 后续验证任务：需要真实 `CandidateEvidence`、更长历史窗口、row-level cross-source 校验和单独的策略/成本/置信度校准 Goal。
 
+#### Candidate-Validation Linkage 记录
+
+- 验证日期：2026-07-04。
+- 输入数据：`outputs/candidates/candidate_evidence.jsonl` 和 `outputs/validation/validation_evidence.jsonl`。
+- 输出数据：`outputs/validation/candidate_validation_links.jsonl` 和 `outputs/reports/candidate_validation_linkage.md`。
+- 当前角色：`CandidateValidationLink` 是候选与验证证据之间的关系账本，不是候选引擎、不是验证引擎，也不是 Signal。
+- 当前状态：已有 baseline `ValidationEvidence`，但当前没有真实 `CandidateEvidence` ledger；因此 linkage builder 会记录 `missing_candidate` / `validation_orphaned_no_candidate`，不会伪造候选。
+- Benchmark 规则：有 `ValidationEvidence` 但没有 linked record 时，vectorbt 维持 `baseline_validated` 并标记 orphan；存在 `linked` 记录时才推进为 `candidate_validation_linked`。
+- 后续验证任务：待 AlphaSift / Qlib / 其他候选引擎生成真实 `CandidateEvidence` 后，重新运行 linkage builder，再进入统一验证评估。
+
 ## 当前下一步
 
-根据 Candidate Engine Benchmark、Qlib runtime read validation 和 vectorbt event baseline，下一步三选一：准备 Qlib 依赖后重跑 runtime read；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或在获得 CandidateEvidence 后把 ValidationEvidence 与候选证据关联。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence 或由它生成并可回溯的 DailyBarPanel。
+根据 Candidate Engine Benchmark、Qlib runtime read validation、vectorbt event baseline 和 Candidate-Validation Linkage，下一步三选一：准备 Qlib 依赖后重跑 runtime read；补齐 AlphaSift runtime 依赖继续 no-LLM 验证并生成真实 CandidateEvidence；或扩大 DailyBarPanel 历史窗口。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence 或由它生成并可回溯的 DailyBarPanel。
