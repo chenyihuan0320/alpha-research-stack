@@ -4,6 +4,36 @@
 
 本次完成：
 
+- 完成 Qlib minimal runtime read validation：新增 `orchestrator/adapters/qlib_runtime_adapter.py` 和 `scripts/validate_qlib_runtime_read.py`。
+- 对 `outputs/panels/cn_daily_bar_panel.csv` 做 CSV schema、shape、traceability fields 和 Qlib dependency 检查。
+- 生成 `outputs/reports/qlib_runtime_read_validation.md`，用于记录 `qlib_runtime_read`、`qlib_available`、`panel_readable`、读取行数、ticker 和日期范围。
+- 更新 Candidate Engine Benchmark：如果 runtime read success，则 Qlib 推进到 `ready_for_minimal_experiment_design`；如果 Qlib 依赖缺失但 panel 可读，则为 `dependency_missing_panel_ready`；format error 则为 `blocked_by_runtime_format`。
+- 新增测试覆盖 panel missing、schema missing、mock valid panel、Qlib missing、Qlib runtime success monkeypatch，以及 benchmark 根据 runtime report 更新状态。
+
+本次未做：
+
+- 未安装 Qlib。
+- 未下载 Qlib 示例数据。
+- 未初始化或运行 Qlib workflow。
+- 未训练模型。
+- 未运行 Qlib 回测。
+- 未生成 CandidateEvidence。
+- 未生成股票推荐。
+- 未生成 final signal。
+- 未生成 confidence。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果允许安装 Qlib 依赖，则重跑 `scripts/validate_qlib_runtime_read.py`，只验证 runtime read，不训练模型。
+- 即使 runtime read 成功，进入训练 / 因子实验前仍需补 row-level cross-source panel 校验，或明确记录接受 `cross_source_status=unavailable` 的风险。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 Verified Daily Bar Panel Builder：新增 `orchestrator/panels/daily_bar_panel.py` 和 `scripts/build_verified_daily_bar_panel.py`。
 - 定义 `DailyBarPanelRow` 与 `DailyBarPanelBuildResult`，保留 `provider_evidence_id`、provider、`cross_source_status`、`quality_flags`、复权口径和 `source_updated_at`。
 - 生成目标为 `outputs/panels/cn_daily_bar_panel.csv` 与 `outputs/reports/verified_daily_bar_panel.md`；summary-only ProviderEvidence 不会被伪造成 panel。

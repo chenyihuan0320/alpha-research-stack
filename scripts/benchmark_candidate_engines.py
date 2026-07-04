@@ -23,6 +23,7 @@ from orchestrator.panels.daily_bar_panel import (  # noqa: E402
 
 EVIDENCE_PATH = Path("outputs/evidence/provider_evidence.jsonl")
 PANEL_PATH = Path("outputs/panels/cn_daily_bar_panel.csv")
+QLIB_RUNTIME_REPORT_PATH = Path("outputs/reports/qlib_runtime_read_validation.md")
 REPORT_PATH = Path("outputs/reports/candidate_engine_benchmark.md")
 BENCHMARK_ENGINE_NAMES = ["alphasift", "qlib", "vectorbt_event_baseline"]
 
@@ -49,7 +50,50 @@ def _panel_is_qlib_ready(panel_path: str | Path) -> bool:
     return True
 
 
-def _qlib_status_and_blocker(allowed_rows: list[Any], panel_path: str | Path) -> tuple[str, str, str]:
+def _extract_runtime_read_status(report_path: str | Path) -> str | None:
+    path = Path(report_path)
+    if not path.exists():
+        return None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("| qlib_runtime_read |"):
+            parts = [part.strip() for part in line.strip("|").split("|")]
+            if len(parts) >= 2:
+                return parts[1]
+    return None
+
+
+def _qlib_status_and_blocker(
+    allowed_rows: list[Any],
+    panel_path: str | Path,
+    runtime_report_path: str | Path,
+) -> tuple[str, str, str]:
+    use_default_runtime_report = (
+        Path(panel_path) == PANEL_PATH
+        and Path(runtime_report_path) == QLIB_RUNTIME_REPORT_PATH
+    )
+    runtime_status = (
+        _extract_runtime_read_status(runtime_report_path)
+        if use_default_runtime_report or Path(runtime_report_path) != QLIB_RUNTIME_REPORT_PATH
+        else None
+    )
+    if runtime_status == "success":
+        return (
+            "ready_for_minimal_experiment_design",
+            "Qlib runtime read validation succeeded; no model training or backtest executed.",
+            "Design Qlib minimal experiment input without training models.",
+        )
+    if runtime_status == "dependency_missing":
+        return (
+            "dependency_missing_panel_ready",
+            "Qlib dependency missing, but verified daily_bar panel is readable.",
+            "Install Qlib only if approved, then rerun runtime read validation.",
+        )
+    if runtime_status == "format_error":
+        return (
+            "blocked_by_runtime_format",
+            "Qlib runtime read validation found a panel format error.",
+            "Fix DailyBarPanel schema before Qlib runtime validation.",
+        )
     if _panel_is_qlib_ready(panel_path):
         return (
             "ready_for_runtime_validation",
@@ -116,6 +160,7 @@ def benchmark_candidate_engines(
     *,
     evidence_path: str | Path = EVIDENCE_PATH,
     panel_path: str | Path = PANEL_PATH,
+    qlib_runtime_report_path: str | Path = QLIB_RUNTIME_REPORT_PATH,
     report_path: str | Path = REPORT_PATH,
 ) -> dict[str, Any]:
     evidence_rows = load_evidence(evidence_path)
@@ -131,7 +176,11 @@ def benchmark_candidate_engines(
         blocker = engine.current_blocker
         next_action = readiness.next_action
         if engine.engine_name == "qlib":
-            status, blocker, next_action = _qlib_status_and_blocker(allowed_rows, panel_path)
+            status, blocker, next_action = _qlib_status_and_blocker(
+                allowed_rows,
+                panel_path,
+                qlib_runtime_report_path,
+            )
         rows.append(
             {
                 "engine": engine.engine_name,

@@ -90,6 +90,8 @@ Qlib 需要多 ticker、按日期展开的 panel 数据，而不是单条 Provid
 - DailyBarPanel 记录可被运行时读取的多 ticker、多日期 OHLCV 数据。
 - Panel 不能由 summary evidence 伪造，必须来自 evidence 中真实 `daily_bars` 或真实 provider 小窗口拉取。
 - Panel ready 只说明可以做 runtime feasibility；Qlib runtime、模型训练和信号生成仍需单独 Goal。
+- Qlib runtime read validation 只验证依赖 import 和 panel 读取链路，不下载 Qlib 数据、不初始化 workflow、不训练模型、不回测。
+- 即使 Qlib 读入成功，也不代表策略有效；当前 `cross_source_status=unavailable` 的 panel 只能用于 runtime format validation，进入训练或因子实验前必须补 row-level cross-source 或明确记录风险接受。
 
 候选来源：
 

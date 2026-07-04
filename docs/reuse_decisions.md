@@ -136,6 +136,16 @@
 - 当前 Qlib 含义：如果 panel 满足多 ticker、多日期和 `date,ticker,open,high,low,close,volume` 字段，只能把 Qlib 状态推进到 `ready_for_runtime_validation`；仍未运行 Qlib，也未训练模型。
 - 后续验证任务：在不训练模型的前提下做 Qlib minimal runtime read validation，或先用 vectorbt 做事件验证 baseline。
 
+#### Qlib runtime read validation 记录
+
+- 验证日期：2026-07-04。
+- 输入数据：`outputs/panels/cn_daily_bar_panel.csv`。
+- 验证方式：先用项目内 CSV reader 检查 schema、shape 和 traceability 字段；若本地已安装 Qlib，则只做 import / 最小读取状态记录。
+- 当前边界：不安装 Qlib、不下载 Qlib 示例数据、不运行 workflow、不训练模型、不回测、不生成 CandidateEvidence。
+- 当前风险：DailyBarPanel 的 row-level `cross_source_status` 仍为 `unavailable`，只能用于 runtime format validation。进入训练 / 因子实验前，必须补 AkShare vs Tushare row-level cross-source 或明确接受风险并记录。
+- 状态含义：`success` 只表示读取链路可用，不代表策略有效；`dependency_missing` 表示 panel 可读但本地未安装 Qlib，不是代码失败。
+- 后续验证任务：若 Qlib 依赖准备完成，执行 minimal runtime read validation；若成功，再设计最小实验输入，但仍不训练模型。
+
 ### 轻量验证
 
 - 已评估项目：vectorbt。
@@ -146,4 +156,4 @@
 
 ## 当前下一步
 
-根据 Candidate Engine Benchmark 和 Qlib feasibility，下一步三选一：基于 DailyBarPanel 做 Qlib minimal runtime read validation；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence 或由它生成并可回溯的 DailyBarPanel。
+根据 Candidate Engine Benchmark 和 Qlib runtime read validation，下一步三选一：准备 Qlib 依赖后重跑 runtime read；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence 或由它生成并可回溯的 DailyBarPanel。
