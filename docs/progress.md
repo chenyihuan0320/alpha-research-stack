@@ -1,5 +1,31 @@
 # 项目进度
 
+## 2026-07-04
+
+本次完成：
+
+- 完成 Reuse Gate：新增 `docs/reuse_decisions.md`，明确候选发现、轻量验证、因子研究、策略演化、报告推送和多 Agent 深度研究的优先复用项目。
+- 完成 AlphaSift 复用计划：新增 `docs/alphasift_reuse_plan.md`，明确 AlphaSift 作为候选发现层的最小验证任务、数据质量门禁和风险。
+- 完成 vectorbt 复用计划：新增 `docs/vectorbt_reuse_plan.md`，明确 vectorbt 作为轻量事件/规则验证层的最小验证任务、data_quality_gate 边界和风险。
+- 完成 adapter skeleton：新增 `orchestrator/adapters/alphasift_adapter.py` 和 `orchestrator/adapters/vectorbt_adapter.py`，只定义输入/输出契约和 gate 检查，不调用真实项目。
+- 更新 `AGENTS.md`、`docs/architecture.md` 和 `README.md`，把 Reuse Gate 写成项目硬规则。
+- 新增不联网测试，覆盖 AlphaSift / vectorbt adapter 在 `block`、`pending_credentials`、`warn`、`pass` 状态下的边界行为。
+
+本次未做：
+
+- 未实现股票推荐。
+- 未实现自建候选评分。
+- 未实现生产回测。
+- 未接 LLM。
+- 未写日报。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果 `data_quality_gate` 对 A 股日线放行，则做 AlphaSift no-LLM 最小复用验证。
+- 如果仍 `block`，先建立 provider evidence ledger，把已验证日线和被阻断估值分开存储。
+
 ## 2026-07-03
 
 本次完成：
