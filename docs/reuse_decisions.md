@@ -95,6 +95,27 @@
 - 是否需要继续适配输入格式：需要。依赖补齐后还要验证 AlphaSift 输出是否能回连到 ProviderEvidence evidence_id。
 - 是否仍禁止自建候选发现器：是。当前只是复用验证被依赖缺失阻断，不构成自建筛选器的理由。
 
+### Candidate Engine Benchmark
+
+验证日期：2026-07-04。
+
+本次新增 Candidate Engine Benchmark，把候选发现从“绑定 AlphaSift”改为“多引擎候选证据统一接口”。AlphaSift 仍优先验证，但不再默认作为唯一候选发现主干。
+
+当前角色边界：
+
+- AlphaSift：`candidate_engine_candidate`，状态为 `pending_runtime`。适合轻量候选发现和 YAML strategy 验证，但 runtime 仍被依赖缺失阻断。
+- Qlib：`factor_model_research_backbone`，状态为 `planned`。用于长期因子 / 模型研究主干，下一步需要验证 Qlib 数据格式 feasibility。
+- vectorbt：`validation_baseline`，状态为 `ready`。只做事件/规则验证 baseline，不是 candidate discovery 主引擎。
+- OpenBB / EdgarTools：research / data input，只提供数据和研究输入，不作为 candidate generator。
+- TradingAgents / FinRobot：deep research / report structure 参考，不是 signal source。
+
+统一规则：
+
+- 所有 candidate engine 输出必须映射为 `CandidateEvidence`。
+- 任何 engine score 都不能直接成为最终 confidence。
+- Benchmark 只评估 readiness，不运行 AlphaSift、Qlib 或 vectorbt，不生成候选。
+- 如果选择自建候选发现器，必须先证明上述候选引擎不能满足最小复用路径，并记录失败原因。
+
 ### 轻量验证
 
 - 已评估项目：vectorbt。
@@ -105,4 +126,4 @@
 
 ## 当前下一步
 
-如果继续候选发现复用验证，下一步是在用户批准后补齐隔离 AlphaSift runtime 依赖，重新执行 no-LLM screen，并把真实输出映射为 `CandidateEvidence`；如果暂不处理 AlphaSift 依赖，则可先做 vectorbt 最小事件验证，但仍只能消费 `allowed_downstream` 放行后的 ProviderEvidence。
+根据 Candidate Engine Benchmark，下一步三选一：补齐 AlphaSift runtime 依赖继续 no-LLM 验证；先做 Qlib data format feasibility；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence。

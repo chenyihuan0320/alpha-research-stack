@@ -4,6 +4,32 @@
 
 本次完成：
 
+- 完成 Candidate Engine Benchmark 设计：新增 `orchestrator/candidates/engine.py`、`orchestrator/candidates/engine_registry.py` 和 `scripts/benchmark_candidate_engines.py`。
+- 明确 AlphaSift 降级为候选引擎之一：当前角色为 `candidate_engine_candidate`，状态为 `pending_runtime`，不是唯一候选发现主干。
+- 明确 Qlib / vectorbt / OpenBB / TradingAgents 的角色边界：Qlib 是长期因子 / 模型研究主干，vectorbt 是验证 baseline，OpenBB 是数据/研究输入，TradingAgents 是深度研究结构参考。
+- 定义 `CandidateEngineInput`、`CandidateEngineResult` 和 `CandidateEngineBenchmarkReport`，统一候选引擎 readiness 评估方式。
+- 生成 `outputs/reports/candidate_engine_benchmark.md`，只评估 readiness，不运行 AlphaSift、Qlib、vectorbt，不生成候选。
+- 新增测试覆盖 registry、AlphaSift pending runtime、Qlib planned、vectorbt 非候选发现主引擎，以及 benchmark 报告边界。
+
+本次未做：
+
+- 未生成股票推荐。
+- 未生成 CandidateEvidence。
+- 未运行 AlphaSift。
+- 未运行 Qlib。
+- 未运行 vectorbt。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 根据 benchmark 结果选择：继续 AlphaSift runtime；或先做 Qlib data format feasibility；或先做 vectorbt event validation baseline。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 AlphaSift no-LLM runtime validation attempt：新增 `scripts/run_alphasift_no_llm_validation.py`，从 ProviderEvidence 生成 AlphaSift runtime 输入并尝试执行本地 `references/alphasift`。
 - 生成隔离 runtime 输入：`outputs/alphasift_runtime/input/universe.csv`、`outputs/alphasift_runtime/input/provider_evidence_mapping.json`、`outputs/alphasift_runtime/input/ars_provider_evidence.yaml`。
 - 生成 `outputs/reports/alphasift_runtime_validation.md`，记录 command、exit code、stdout/stderr 日志路径、输入文件和失败原因。
