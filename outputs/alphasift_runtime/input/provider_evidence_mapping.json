@@ -1,0 +1,62 @@
+{
+  "600519.SH": {
+    "evidence_id": "provider-evidence-20260704T113634Z:600519.SH:daily_bar",
+    "run_id": "provider-evidence-20260704T113634Z",
+    "market": "CN",
+    "ticker": "600519.SH",
+    "data_domain": "daily_bar",
+    "quality_flags": [
+      "adjustment_unverified:none",
+      "unit_normalized:amount_thousand_yuan_to_yuan",
+      "unit_normalized:volume_hands_to_shares",
+      "unit_unverified:amount",
+      "unit_unverified:turnover",
+      "unit_unverified:volume"
+    ],
+    "gate_status": "warn",
+    "allowed_downstream": [
+      "alphasift_exploratory",
+      "vectorbt"
+    ]
+  },
+  "000001.SZ": {
+    "evidence_id": "provider-evidence-20260704T113634Z:000001.SZ:daily_bar",
+    "run_id": "provider-evidence-20260704T113634Z",
+    "market": "CN",
+    "ticker": "000001.SZ",
+    "data_domain": "daily_bar",
+    "quality_flags": [
+      "adjustment_unverified:none",
+      "unit_normalized:amount_thousand_yuan_to_yuan",
+      "unit_normalized:volume_hands_to_shares",
+      "unit_unverified:amount",
+      "unit_unverified:turnover",
+      "unit_unverified:volume"
+    ],
+    "gate_status": "warn",
+    "allowed_downstream": [
+      "alphasift_exploratory",
+      "vectorbt"
+    ]
+  },
+  "300750.SZ": {
+    "evidence_id": "provider-evidence-20260704T113634Z:300750.SZ:daily_bar",
+    "run_id": "provider-evidence-20260704T113634Z",
+    "market": "CN",
+    "ticker": "300750.SZ",
+    "data_domain": "daily_bar",
+    "quality_flags": [
+      "adjustment_unverified:none",
+      "unit_normalized:amount_thousand_yuan_to_yuan",
+      "unit_normalized:volume_hands_to_shares",
+      "unit_unverified:amount",
+      "unit_unverified:turnover",
+      "unit_unverified:volume"
+    ],
+    "gate_status": "warn",
+    "allowed_downstream": [
+      "alphasift_exploratory",
+      "vectorbt"
+    ]
+  }
+}

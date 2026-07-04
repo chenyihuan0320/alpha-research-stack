@@ -84,6 +84,17 @@
 - 自建范围如何最小化：本项目只维护 adapter、CandidateEvidence 契约和 ledger，不自建筛选器。
 - 后续验证任务：在隔离环境运行 `alphasift screen <strategy> --no-llm`，确认真实输出字段和 `CandidateEvidence` 映射。
 
+#### AlphaSift runtime 验证记录
+
+- runtime 验证日期：2026-07-04。
+- runtime 验证方式：从 ProviderEvidence 生成 `universe.csv`、`provider_evidence_mapping.json` 和最小 strategy YAML，在 `outputs/alphasift_runtime/` 下调用本地 `references/alphasift` 的 `alphasift.cli screen ... --no-llm`。
+- 成功/失败状态：失败，`runtime_status=dependency_missing`。
+- 失败原因：当前项目 venv 缺少 AlphaSift runtime 依赖 `yaml` / PyYAML，CLI 尚未启动到筛选阶段。
+- 是否可直接复用：暂不能直接复用。
+- 不能直接复用原因：依赖环境未准备完成，且尚未验证 AlphaSift runtime 能消费本项目生成的 ProviderEvidence 输入文件。
+- 是否需要继续适配输入格式：需要。依赖补齐后还要验证 AlphaSift 输出是否能回连到 ProviderEvidence evidence_id。
+- 是否仍禁止自建候选发现器：是。当前只是复用验证被依赖缺失阻断，不构成自建筛选器的理由。
+
 ### 轻量验证
 
 - 已评估项目：vectorbt。
@@ -94,4 +105,4 @@
 
 ## 当前下一步
 
-如果继续候选发现复用验证，下一步是在隔离环境中执行 AlphaSift no-LLM runtime，并把真实输出映射为 `CandidateEvidence`；如果暂不运行 AlphaSift，则可先做 vectorbt 最小事件验证，但仍只能消费 `allowed_downstream` 放行后的 ProviderEvidence。
+如果继续候选发现复用验证，下一步是在用户批准后补齐隔离 AlphaSift runtime 依赖，重新执行 no-LLM screen，并把真实输出映射为 `CandidateEvidence`；如果暂不处理 AlphaSift 依赖，则可先做 vectorbt 最小事件验证，但仍只能消费 `allowed_downstream` 放行后的 ProviderEvidence。

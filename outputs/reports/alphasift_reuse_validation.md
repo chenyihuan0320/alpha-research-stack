@@ -1,6 +1,6 @@
 # AlphaSift Reuse Validation
 
-- run_at: 2026-07-04T11:21:51.781964+00:00
+- run_at: 2026-07-04T11:36:40.153285+00:00
 - reuse_validation_status: local_project_inspected_runtime_not_executed
 - local_alphasift_found: True
 - local_alphasift_path: references/alphasift
@@ -28,9 +28,9 @@
 
 | ticker | candidate_date | evidence_id | data_domain | gate_status |
 |---|---|---|---|---|
-| 600519.SH | 2026-07-04 | provider-evidence-20260704T112148Z:600519.SH:daily_bar | daily_bar | warn |
-| 000001.SZ | 2026-07-04 | provider-evidence-20260704T112148Z:000001.SZ:daily_bar | daily_bar | warn |
-| 300750.SZ | 2026-07-04 | provider-evidence-20260704T112148Z:300750.SZ:daily_bar | daily_bar | warn |
+| 600519.SH | 2026-07-04 | provider-evidence-20260704T113634Z:600519.SH:daily_bar | daily_bar | warn |
+| 000001.SZ | 2026-07-04 | provider-evidence-20260704T113634Z:000001.SZ:daily_bar | daily_bar | warn |
+| 300750.SZ | 2026-07-04 | provider-evidence-20260704T113634Z:300750.SZ:daily_bar | daily_bar | warn |
 
 ## Next Required Action
 

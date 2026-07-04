@@ -1,0 +1,22 @@
+name: ars_provider_evidence
+display_name: ARS Provider Evidence Runtime Validation
+description: Runtime validation strategy generated from ProviderEvidence; not a recommendation.
+version: "0.1"
+category: validation
+tags: [runtime_validation, no_llm]
+style:
+  risk_profile: exploratory
+  holding_period: watchlist
+  execution_style: validation
+screening:
+  enabled: true
+  market_scope: [cn]
+  hard_filters:
+    exclude_st: true
+    amount_min: 0
+    price_min: 0
+  tech_weight: 0.0
+  factor_weights:
+    activity: 1.0
+  ranking_hints: "Runtime validation only. Do not treat output as recommendation."
+  max_output: 3

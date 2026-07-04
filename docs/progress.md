@@ -4,6 +4,33 @@
 
 本次完成：
 
+- 完成 AlphaSift no-LLM runtime validation attempt：新增 `scripts/run_alphasift_no_llm_validation.py`，从 ProviderEvidence 生成 AlphaSift runtime 输入并尝试执行本地 `references/alphasift`。
+- 生成隔离 runtime 输入：`outputs/alphasift_runtime/input/universe.csv`、`outputs/alphasift_runtime/input/provider_evidence_mapping.json`、`outputs/alphasift_runtime/input/ars_provider_evidence.yaml`。
+- 生成 `outputs/reports/alphasift_runtime_validation.md`，记录 command、exit code、stdout/stderr 日志路径、输入文件和失败原因。
+- 已真实尝试运行 AlphaSift CLI，但当前结果为 `runtime_status=dependency_missing`：项目 venv 缺少 `yaml` / PyYAML，AlphaSift CLI 未进入筛选阶段。
+- 未生成 `outputs/candidates/candidate_evidence.jsonl`，因为没有真实 AlphaSift pick 输出可解析；没有伪造候选。
+- 新增 runtime validation 测试，覆盖 missing repo、CLI 缺失、依赖缺失、fake successful raw output 映射 CandidateEvidence、parse failed 不写 CandidateEvidence。
+
+本次未做：
+
+- 未做股票推荐。
+- 未生成最终 signal。
+- 未做 confidence。
+- 未做回测。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果继续 AlphaSift 复用验证，需要用户批准在隔离环境安装 AlphaSift runtime 依赖，然后重新运行 `scripts/run_alphasift_no_llm_validation.py`。
+- 如果 CandidateEvidence 成功生成，则做 vectorbt 最小事件验证。
+- 如果 runtime 继续失败，则修正 AlphaSift input mapping 或记录复用失败原因，仍不得自建候选筛选器替代。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 AlphaSift no-LLM reuse validation attempt：新增 `scripts/validate_alphasift_reuse.py`，只读取 ProviderEvidence 和本地 AlphaSift 引用，不联网 clone、不安装依赖、不执行筛选。
 - 修正 AlphaSift adapter 边界：`build_alphasift_input` 现在消费 `ProviderEvidence` / `ProviderEvidence.to_dict()`，只接受 `daily_bar` 且 `allowed_downstream` 包含 `alphasift` 或 `alphasift_exploratory` 的 evidence。
 - 修正 vectorbt adapter 边界：`build_vectorbt_input` 不再根据 `quality_gate_status` 自动放行，只能消费 `allowed_downstream` 包含 `vectorbt` 的 ProviderEvidence。
