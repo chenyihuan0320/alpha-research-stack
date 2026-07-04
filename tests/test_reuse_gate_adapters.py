@@ -13,13 +13,13 @@ from orchestrator.adapters.vectorbt_adapter import (
 
 
 def test_can_send_to_alphasift_blocks_bad_gate_statuses() -> None:
-    assert can_send_to_alphasift({"quality_gate_status": "block"}) is False
-    assert can_send_to_alphasift({"quality_gate_status": "pending_credentials"}) is False
+    assert can_send_to_alphasift({"quality_gate_status": "block", "allowed_downstream": []}) is False
+    assert can_send_to_alphasift({"quality_gate_status": "pending_credentials", "allowed_downstream": []}) is False
 
 
 def test_can_send_to_alphasift_allows_warn_and_pass() -> None:
-    assert can_send_to_alphasift({"quality_gate_status": "warn"}) is True
-    assert can_send_to_alphasift({"quality_gate_status": "pass"}) is True
+    assert can_send_to_alphasift({"quality_gate_status": "warn", "allowed_downstream": ["alphasift_exploratory"]}) is True
+    assert can_send_to_alphasift({"quality_gate_status": "pass", "allowed_downstream": ["alphasift"]}) is True
 
 
 def test_build_alphasift_input_rejects_blocked_evidence() -> None:
@@ -57,13 +57,13 @@ def test_parse_alphasift_output_minimal_payload() -> None:
 
 
 def test_can_send_to_vectorbt_blocks_bad_gate_statuses() -> None:
-    assert can_send_to_vectorbt({"quality_gate_status": "block"}) is False
-    assert can_send_to_vectorbt({"quality_gate_status": "pending_credentials"}) is False
+    assert can_send_to_vectorbt({"quality_gate_status": "block", "allowed_downstream": []}) is False
+    assert can_send_to_vectorbt({"quality_gate_status": "pending_credentials", "allowed_downstream": []}) is False
 
 
 def test_can_send_to_vectorbt_allows_warn_and_pass() -> None:
-    assert can_send_to_vectorbt({"quality_gate_status": "warn"}) is True
-    assert can_send_to_vectorbt({"quality_gate_status": "pass"}) is True
+    assert can_send_to_vectorbt({"quality_gate_status": "warn", "allowed_downstream": ["vectorbt"]}) is True
+    assert can_send_to_vectorbt({"quality_gate_status": "pass", "allowed_downstream": ["vectorbt"]}) is True
 
 
 def test_build_vectorbt_input_rejects_blocked_daily_bars() -> None:

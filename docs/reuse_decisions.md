@@ -8,6 +8,7 @@
 - 不允许因为“自己实现更快”绕过复用验证。
 - 复用验证必须先明确输入、输出、质量门禁、许可证、集成复杂度和失败替代方案。
 - `data_quality_gate=block` 或 `pending_credentials` 的字段不能进入候选发现、回测验证、报告生成或 Agent 研究。
+- Reuse Gate 依赖 Provider Evidence Ledger；下游组件只读取 `allowed_downstream` 放行后的 evidence。
 - LLM ranking、第三方评分或示例策略输出不能直接成为最终 confidence。
 - 自建代码只做编排、契约、适配、审计、证据链和校准，不重写通用框架。
 
@@ -67,6 +68,7 @@
 - 已评估项目：AlphaSift。
 - 当前结论：先做 adapter skeleton 和输入/输出契约；在 `data_quality_gate` 放行 provider evidence 前，不运行候选发现。
 - 不自建原因：AlphaSift 已覆盖 YAML strategy、全市场筛选、run 保存和 T+N evaluation 的候选发现核心形态。
+- Reuse Gate 边界：AlphaSift 不直接消费 provider 原始数据，只消费 `allowed_downstream` 包含 `alphasift` 或 `alphasift_exploratory` 的 ProviderEvidence。
 - 后续验证：允许 clone/安装后运行 AlphaSift no-LLM quickstart，并把输出保存为 `candidate_evidence`。
 
 ### 轻量验证
@@ -74,4 +76,9 @@
 - 已评估项目：vectorbt。
 - 当前结论：先做 adapter skeleton；只允许通过 gate 的 `daily_bar` 进入后续 vectorbt 验证。
 - 不自建原因：vectorbt 已覆盖向量化持有期验证、交易成本、参数扫描和基础指标输出。
+- Reuse Gate 边界：vectorbt 不直接消费 provider 原始数据，只消费 `allowed_downstream` 包含 `vectorbt` 的 ProviderEvidence。
 - 后续验证：安装可选依赖后，用已验证 A 股日线样本跑最小事件持有期验证。
+
+## 当前下一步
+
+必须先生成 Provider Evidence Ledger，把已验证 daily_bar 和被阻断 valuation / fundamentals 分开存储；再决定是否做 AlphaSift no-LLM 最小验证或 vectorbt 最小事件验证。

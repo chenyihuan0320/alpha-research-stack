@@ -33,6 +33,9 @@
 - `pending_credentials` 不是代码失败，不能伪造数据绕过。
 - ticker mapping、复权口径、币种、单位、更新时间和缺失率必须在接入记录中说明。
 - OpenBB 等存在许可证或 provider 覆盖不确定性的组件，只能先做可选适配器规划，不能作为强依赖。
+- 下游复用组件不得直接读取 provider 原始输出，只能读取 `ProviderEvidence`。
+- `allowed_downstream` 是进入 AlphaSift / vectorbt 等复用组件的唯一通道。
+- valuation / fundamentals block 不得阻断已验证 daily_bar 的探索性验证，但报告中必须保留风险说明。
 
 ## 开源复用优先
 

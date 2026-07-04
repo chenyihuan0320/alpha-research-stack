@@ -4,6 +4,32 @@
 
 本次完成：
 
+- 完成 Provider Evidence Ledger：新增 `ProviderEvidence` 模型、本地 JSONL ledger 和 evidence summary 报告脚本。
+- 完成 domain-level quality gate：将 `daily_bar`、`valuation`、`fundamentals`、`event/news` 分域计算 gate status 和 `allowed_downstream`。
+- 完成 `outputs/reports/provider_evidence_summary.md` 生成路径，明确每个 ticker / domain 的 gate、放行下游和阻断原因。
+- 已将 daily_bar 与 valuation / fundamentals 分域处理：daily_bar 可在 `warn/pass` 时进入探索性复用验证，valuation / fundamentals 的 block 不再污染 daily_bar。
+- 更新 AlphaSift / vectorbt adapter skeleton，只允许消费 `allowed_downstream` 放行后的 ProviderEvidence。
+
+本次未做：
+
+- 未接 AlphaSift。
+- 未接 vectorbt。
+- 未做股票推荐。
+- 未生成候选。
+- 未做回测。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+
+下一步：
+
+- 如果 daily_bar evidence allow `vectorbt` / `alphasift_exploratory`，则做 AlphaSift no-LLM 最小复用验证或 vectorbt 最小事件验证。
+- valuation / fundamentals 继续等待 Tushare 权限、限频窗口释放或替代数据源。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 Reuse Gate：新增 `docs/reuse_decisions.md`，明确候选发现、轻量验证、因子研究、策略演化、报告推送和多 Agent 深度研究的优先复用项目。
 - 完成 AlphaSift 复用计划：新增 `docs/alphasift_reuse_plan.md`，明确 AlphaSift 作为候选发现层的最小验证任务、数据质量门禁和风险。
 - 完成 vectorbt 复用计划：新增 `docs/vectorbt_reuse_plan.md`，明确 vectorbt 作为轻量事件/规则验证层的最小验证任务、data_quality_gate 边界和风险。

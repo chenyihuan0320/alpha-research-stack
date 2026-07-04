@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-BLOCKING_GATE_STATUSES = {"block", "pending_credentials"}
+VECTORBT_DOWNSTREAM_NAME = "vectorbt"
 
 
 @dataclass(slots=True)
@@ -39,8 +39,16 @@ def _gate_status(value: Any) -> str:
     return str(getattr(value, "quality_gate_status", getattr(value, "gate_status", "")))
 
 
+def _allowed_downstream(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        items = value.get("allowed_downstream", [])
+    else:
+        items = getattr(value, "allowed_downstream", [])
+    return [str(item) for item in (items or [])]
+
+
 def can_send_to_vectorbt(daily_bar_quality: Any) -> bool:
-    return _gate_status(daily_bar_quality) not in BLOCKING_GATE_STATUSES
+    return VECTORBT_DOWNSTREAM_NAME in _allowed_downstream(daily_bar_quality)
 
 
 def build_vectorbt_input(
@@ -52,8 +60,13 @@ def build_vectorbt_input(
     holding_period: int,
     quality_gate_status: str,
 ) -> VectorBTValidationInput:
-    if not can_send_to_vectorbt({"quality_gate_status": quality_gate_status}):
-        raise ValueError("Daily bars blocked by data_quality_gate and cannot be sent to vectorbt.")
+    if not can_send_to_vectorbt(
+        {
+            "quality_gate_status": quality_gate_status,
+            "allowed_downstream": ["vectorbt"] if quality_gate_status not in {"block", "pending_credentials"} else [],
+        }
+    ):
+        raise ValueError("Daily bars are not allowed_downstream for vectorbt.")
     return VectorBTValidationInput(
         ticker=ticker,
         market=market,

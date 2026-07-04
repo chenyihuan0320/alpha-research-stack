@@ -279,6 +279,44 @@ JSON schema 风格：
 }
 ```
 
+## ProviderEvidence / Evidence Ledger
+
+Provider Evidence Ledger 用于把 provider 输出按 `data_domain` 拆分存证，避免一个领域的失败阻断另一个已验证领域。例如：daily_bar 通过 AkShare / Tushare 共同交易日校验，不代表 valuation 通过；valuation block 也不应阻断 daily_bar 的探索性验证。
+
+最小字段：
+
+| 字段 | 类型 | 必须 | 说明 |
+| --- | --- | --- | --- |
+| evidence_id | string | 是 | ledger 内唯一 ID |
+| run_id | string | 是 | 本次构建运行 ID |
+| market | string | 是 | `CN` / `HK` / `US` |
+| ticker | string | 是 | 项目 ticker |
+| data_domain | string | 是 | `daily_bar` / `valuation` / `fundamentals` / `event` / `news` |
+| provider | string | 是 | provider 或 provider 组合 |
+| provider_ticker | string | 是 | provider 原始 ticker 映射摘要 |
+| source_updated_at | datetime | 是 | provider 报告或样本更新时间 |
+| observed_at | datetime | 是 | evidence 生成时间 |
+| normalized_payload | object | 是 | 少量样本或摘要，不保存全量行情 |
+| raw_field_mapping | object | 是 | provider 原始字段到契约字段的映射 |
+| quality_flags | array[string] | 是 | 质量标记 |
+| cross_source_status | string | 是 | `unchecked` / `matched` / `mismatch` / `unavailable` / `pending_credentials` |
+| gate_status | string | 是 | `pass` / `warn` / `block` / `pending_credentials` |
+| allowed_downstream | array[string] | 是 | 允许进入的下游复用组件 |
+| notes | string | 否 | 风险说明 |
+
+`allowed_downstream` 的含义：
+
+- `vectorbt`：允许作为 price-only 或 event validation 的输入。
+- `alphasift_exploratory`：允许作为 AlphaSift no-LLM 探索性候选发现证据。
+- `research_evidence`：允许进入人工或研究证据层，不允许直接进入 candidate scoring。
+
+重要边界：
+
+- daily_bar 通过不代表 valuation 通过。
+- valuation block 不应阻断 daily_bar 的探索性验证。
+- fundamentals block 不应阻断 price-only 验证。
+- 下游复用组件不能直接消费 provider 原始数据，只能消费带 `allowed_downstream` 的 ProviderEvidence。
+
 ## 跨市场特殊注意点
 
 ### A 股

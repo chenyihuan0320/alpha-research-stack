@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-BLOCKING_GATE_STATUSES = {"block", "pending_credentials"}
+ALPHASIFT_DOWNSTREAM_NAMES = {"alphasift", "alphasift_exploratory"}
 
 
 @dataclass(slots=True)
@@ -41,13 +41,21 @@ def _gate_status(value: Any) -> str:
     return str(getattr(value, "quality_gate_status", getattr(value, "gate_status", "")))
 
 
+def _allowed_downstream(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        items = value.get("allowed_downstream", [])
+    else:
+        items = getattr(value, "allowed_downstream", [])
+    return [str(item) for item in (items or [])]
+
+
 def can_send_to_alphasift(evidence: Any) -> bool:
-    return _gate_status(evidence) not in BLOCKING_GATE_STATUSES
+    return bool(ALPHASIFT_DOWNSTREAM_NAMES & set(_allowed_downstream(evidence)))
 
 
 def build_alphasift_input(evidence: dict[str, Any]) -> AlphaSiftCandidateInput:
     if not can_send_to_alphasift(evidence):
-        raise ValueError("Evidence blocked by data_quality_gate and cannot be sent to AlphaSift.")
+        raise ValueError("Evidence is not allowed_downstream for AlphaSift.")
     return AlphaSiftCandidateInput(
         run_id=str(evidence["run_id"]),
         market=str(evidence["market"]),
