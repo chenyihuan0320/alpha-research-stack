@@ -1,17 +1,17 @@
 # Qlib Data Feasibility
 
-- feasibility_status: partial
-- qlib_runtime_ready: no
+- feasibility_status: feasible
+- qlib_runtime_ready: yes
 - eligible_daily_bar_count: 3
 
 | item | status | detail |
 |---|---|---|
 | eligible_daily_bar_evidence | pass | count=3 |
-| required_fields | pass | required=date,ticker,open,high,low,close,volume; available=date, ticker, open, high, low, close, volume, amount; missing=none |
-| time_series_panel | warn | complete daily_bars panel missing; current evidence is summary-level |
+| required_fields | pass | required=date,ticker,open,high,low,close,volume; available=date, ticker, open, high, low, close, volume; missing=none |
+| time_series_panel | pass | complete daily_bar panel present at outputs/panels/cn_daily_bar_panel.csv |
 | multi_ticker_panel | pass | tickers=3 |
-| qlib_runtime_ready | block | no |
-| next_action | - | build verified daily_bar panel before Qlib runtime validation. |
+| qlib_runtime_ready | pass | yes |
+| next_action | - | Proceed to Qlib minimal runtime validation without training models. |
 
 ## Boundary
 

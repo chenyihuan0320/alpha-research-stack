@@ -10,6 +10,7 @@ def test_candidate_engine_benchmark_report_is_generated_without_running_engines(
     import scripts.benchmark_candidate_engines as benchmark
 
     evidence_path = tmp_path / "provider_evidence.jsonl"
+    panel_path = tmp_path / "missing_panel.csv"
     report_path = tmp_path / "candidate_engine_benchmark.md"
     now = datetime(2026, 7, 4, tzinfo=timezone.utc)
     append_evidence(
@@ -36,6 +37,7 @@ def test_candidate_engine_benchmark_report_is_generated_without_running_engines(
 
     result = benchmark.benchmark_candidate_engines(
         evidence_path=evidence_path,
+        panel_path=panel_path,
         report_path=report_path,
     )
     report = report_path.read_text(encoding="utf-8")

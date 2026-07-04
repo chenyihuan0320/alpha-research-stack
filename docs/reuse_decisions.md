@@ -126,6 +126,16 @@
 - 是否值得继续引入 Qlib：值得。Qlib 的长期价值在因子 / 模型研究、数据集管理和系统化验证，不应被短期 summary-only evidence 阻断。
 - 为什么 Qlib 是长期主干而不是短期候选器：Qlib 需要稳定、宽表/长表 panel 和严格实验配置；短期应先构建 verified daily_bar panel，再做 minimal runtime validation，不应直接拿 ProviderEvidence summary 训练或筛选。
 
+#### Verified DailyBarPanel 记录
+
+- 验证日期：2026-07-04。
+- 输入数据：`outputs/evidence/provider_evidence.jsonl` 中 `allowed_downstream` 放行的 CN `daily_bar` ProviderEvidence。
+- 输出目标：`outputs/panels/cn_daily_bar_panel.csv` 和 `outputs/reports/verified_daily_bar_panel.md`。
+- 当前角色：DailyBarPanel 是 Qlib / vectorbt 后续 runtime validation 的 dataset artifact；ProviderEvidence 仍是准入账本和溯源账本。
+- 关键约束：不能用 summary evidence 伪造 daily_bars；每行 panel 必须保留 `provider_evidence_id`、`provider`、`cross_source_status`、`quality_flags` 和 `adjustment`。
+- 当前 Qlib 含义：如果 panel 满足多 ticker、多日期和 `date,ticker,open,high,low,close,volume` 字段，只能把 Qlib 状态推进到 `ready_for_runtime_validation`；仍未运行 Qlib，也未训练模型。
+- 后续验证任务：在不训练模型的前提下做 Qlib minimal runtime read validation，或先用 vectorbt 做事件验证 baseline。
+
 ### 轻量验证
 
 - 已评估项目：vectorbt。
@@ -136,4 +146,4 @@
 
 ## 当前下一步
 
-根据 Candidate Engine Benchmark 和 Qlib feasibility，下一步三选一：构建 verified daily_bar panel builder；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence。
+根据 Candidate Engine Benchmark 和 Qlib feasibility，下一步三选一：基于 DailyBarPanel 做 Qlib minimal runtime read validation；补齐 AlphaSift runtime 依赖继续 no-LLM 验证；或先做 vectorbt event validation baseline。无论选择哪条路径，都只能消费 `allowed_downstream` 放行后的 ProviderEvidence 或由它生成并可回溯的 DailyBarPanel。

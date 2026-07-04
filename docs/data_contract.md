@@ -317,6 +317,38 @@ Provider Evidence Ledger 用于把 provider 输出按 `data_domain` 拆分存证
 - fundamentals block 不应阻断 price-only 验证。
 - 下游复用组件不能直接消费 provider 原始数据，只能消费带 `allowed_downstream` 的 ProviderEvidence。
 
+## DailyBarPanel
+
+DailyBarPanel 是从已放行的 CN `daily_bar` ProviderEvidence 扩展出的多 ticker、多日期数据集输入，用于后续 Qlib runtime feasibility、vectorbt event validation 和候选验证。ProviderEvidence 是证据账本，不是训练数据集；DailyBarPanel 才是可被量化组件读取的 dataset artifact。
+
+最小字段：
+
+| 字段 | 类型 | 必须 | 说明 |
+| --- | --- | --- | --- |
+| run_id | string | 是 | 来源 evidence 构建运行 ID |
+| market | string | 是 | 当前只允许 `CN` |
+| ticker | string | 是 | 项目 ticker |
+| date | date | 是 | 交易日 |
+| open | number | 是 | 开盘价 |
+| high | number | 是 | 最高价 |
+| low | number | 是 | 最低价 |
+| close | number | 是 | 收盘价 |
+| volume | number | 是 | 成交量 |
+| amount | number | 否 | 成交额，可空 |
+| provider | string | 是 | 生成该行 panel 的 provider |
+| provider_evidence_id | string | 是 | 回溯到 ProviderEvidence 的 ID |
+| cross_source_status | string | 是 | `matched` / `mismatch` / `unavailable` / `unchecked` |
+| quality_flags | array[string] | 是 | 原始 evidence 与 panel 构建质量标记 |
+| adjustment | string | 是 | `none` / `qfq` / `hfq` / `forward` / `backward` / `unknown` |
+| source_updated_at | datetime | 是 | 来源更新时间 |
+
+重要边界：
+
+- Panel 不能由 summary evidence 伪造；如果 ProviderEvidence 只有 `compared_fields`、`price_diff_pct` 等摘要，必须返回 `blocked_by_missing_time_series` 或重新从真实 provider 拉取小窗口样本。
+- Panel 必须保留 `provider_evidence_id`，否则不能进入 Qlib/vectorbt。
+- DailyBarPanel 可证明行情字段可用于 runtime format validation，但不代表 valuation/fundamentals 可用。
+- DailyBarPanel 通过后仍只允许进入 Qlib/vectorbt runtime feasibility；Qlib runtime、模型训练、策略验证和 signal 生成都必须在后续 Goal 单独执行。
+
 ## 跨市场特殊注意点
 
 ### A 股

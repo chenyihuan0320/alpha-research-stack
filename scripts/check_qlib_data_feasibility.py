@@ -18,9 +18,14 @@ from orchestrator.adapters.qlib_adapter import (  # noqa: E402
     evaluate_qlib_data_format_feasibility,
 )
 from orchestrator.evidence.ledger import load_evidence  # noqa: E402
+from orchestrator.panels.daily_bar_panel import (  # noqa: E402
+    load_daily_bar_panel_csv,
+    summarize_daily_bar_panel,
+)
 
 
 EVIDENCE_PATH = Path("outputs/evidence/provider_evidence.jsonl")
+PANEL_PATH = Path("outputs/panels/cn_daily_bar_panel.csv")
 REPORT_PATH = Path("outputs/reports/qlib_data_feasibility.md")
 
 
@@ -44,6 +49,21 @@ def _has_complete_daily_bars(evidence_rows: list[Any]) -> bool:
             if any(field not in bar or bar.get(field) in (None, "") for field in REQUIRED_DAILY_BAR_FIELDS):
                 return False
     return bool(evidence_rows)
+
+
+def _has_complete_panel_csv(panel_path: Path) -> bool:
+    rows = load_daily_bar_panel_csv(panel_path)
+    if not rows:
+        return False
+    ticker_count = len({row.ticker for row in rows})
+    date_count = len({row.date for row in rows})
+    if ticker_count < 2 or date_count < 2:
+        return False
+    for row in rows:
+        payload = row.to_dict()
+        if any(payload.get(field) in (None, "") for field in REQUIRED_DAILY_BAR_FIELDS):
+            return False
+    return True
 
 
 def _write_report(result: dict[str, Any], report_path: Path) -> None:
@@ -78,6 +98,7 @@ def _write_report(result: dict[str, Any], report_path: Path) -> None:
 def check_qlib_data_feasibility(
     *,
     evidence_path: str | Path = EVIDENCE_PATH,
+    panel_path: str | Path = PANEL_PATH,
     report_path: str | Path = REPORT_PATH,
 ) -> dict[str, Any]:
     evidence_rows = load_evidence(evidence_path)
@@ -87,14 +108,36 @@ def check_qlib_data_feasibility(
         if row.market == "CN" and row.data_domain == "daily_bar" and can_send_to_qlib(row)
     ]
     feasibility = evaluate_qlib_data_format_feasibility(cn_daily_rows)
-    full_panel = _has_complete_daily_bars(cn_daily_rows)
+    panel_path = Path(panel_path)
+    panel_rows = load_daily_bar_panel_csv(panel_path)
+    panel_summary = summarize_daily_bar_panel(panel_rows)
+    panel_complete = _has_complete_panel_csv(panel_path)
+    full_panel = panel_complete or _has_complete_daily_bars(cn_daily_rows)
     multi_ticker = len({row.ticker for row in cn_daily_rows}) >= 2
+    if panel_rows:
+        multi_ticker = panel_summary["ticker_count"] >= 2
     try:
         adapter_input = build_qlib_format_input(cn_daily_rows)
         field_detail = ", ".join(adapter_input.fields)
     except ValueError:
         field_detail = "no eligible fields"
-    qlib_ready = feasibility.status == "feasible"
+    if panel_rows:
+        available_fields = [field for field in REQUIRED_DAILY_BAR_FIELDS if all(getattr(row, field) not in (None, "") for row in panel_rows)]
+        missing_fields = [field for field in REQUIRED_DAILY_BAR_FIELDS if field not in available_fields]
+        field_detail = ", ".join(available_fields)
+        feasibility_status = "feasible" if panel_complete and not missing_fields else "partial"
+        qlib_ready = panel_complete and not missing_fields
+        next_action = (
+            "Proceed to Qlib minimal runtime validation without training models."
+            if qlib_ready
+            else "complete verified daily_bar panel before Qlib runtime validation."
+        )
+        missing_detail = ",".join(missing_fields) or "none"
+    else:
+        feasibility_status = feasibility.status
+        qlib_ready = feasibility.status == "feasible"
+        next_action = feasibility.next_action
+        missing_detail = ",".join(feasibility.missing_fields) or "none"
     rows = [
         {
             "item": "eligible_daily_bar_evidence",
@@ -103,13 +146,13 @@ def check_qlib_data_feasibility(
         },
         {
             "item": "required_fields",
-            "status": _status(not feasibility.missing_fields, bool(feasibility.available_fields)),
-            "detail": f"required={','.join(REQUIRED_DAILY_BAR_FIELDS)}; available={field_detail}; missing={','.join(feasibility.missing_fields) or 'none'}",
+            "status": _status(missing_detail == "none", field_detail != "no eligible fields"),
+            "detail": f"required={','.join(REQUIRED_DAILY_BAR_FIELDS)}; available={field_detail}; missing={missing_detail}",
         },
         {
             "item": "time_series_panel",
             "status": _status(full_panel, bool(cn_daily_rows)),
-            "detail": "complete daily_bars panel present" if full_panel else "complete daily_bars panel missing; current evidence is summary-level",
+            "detail": f"complete daily_bar panel present at {panel_path}" if panel_complete else "complete daily_bars panel missing; current evidence is summary-level",
         },
         {
             "item": "multi_ticker_panel",
@@ -124,16 +167,18 @@ def check_qlib_data_feasibility(
         {
             "item": "next_action",
             "status": "-",
-            "detail": feasibility.next_action,
+            "detail": next_action,
         },
     ]
     result = {
-        "feasibility_status": feasibility.status,
+        "feasibility_status": feasibility_status,
         "qlib_runtime_ready": "yes" if qlib_ready else "no",
         "eligible_daily_bar_count": len(cn_daily_rows),
         "rows": rows,
         "warnings": feasibility.warnings,
-        "missing_fields": feasibility.missing_fields,
+        "missing_fields": [] if missing_detail == "none" else missing_detail.split(","),
+        "panel_path": str(panel_path),
+        "panel_row_count": len(panel_rows),
     }
     _write_report(result, Path(report_path))
     return result

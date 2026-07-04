@@ -10,6 +10,7 @@ def test_qlib_data_feasibility_report_marks_current_summary_as_not_runtime_ready
     import scripts.check_qlib_data_feasibility as script
 
     evidence_path = tmp_path / "provider_evidence.jsonl"
+    panel_path = tmp_path / "missing_panel.csv"
     report_path = tmp_path / "qlib_data_feasibility.md"
     now = datetime(2026, 7, 4, tzinfo=timezone.utc)
     append_evidence(
@@ -37,7 +38,7 @@ def test_qlib_data_feasibility_report_marks_current_summary_as_not_runtime_ready
         evidence_path,
     )
 
-    result = script.check_qlib_data_feasibility(evidence_path=evidence_path, report_path=report_path)
+    result = script.check_qlib_data_feasibility(evidence_path=evidence_path, panel_path=panel_path, report_path=report_path)
     report = report_path.read_text(encoding="utf-8")
 
     assert result["qlib_runtime_ready"] == "no"
@@ -50,6 +51,7 @@ def test_candidate_engine_benchmark_uses_qlib_feasibility_status(tmp_path) -> No
     import scripts.benchmark_candidate_engines as benchmark
 
     evidence_path = tmp_path / "provider_evidence.jsonl"
+    panel_path = tmp_path / "missing_panel.csv"
     report_path = tmp_path / "candidate_engine_benchmark.md"
     now = datetime(2026, 7, 4, tzinfo=timezone.utc)
     append_evidence(
@@ -74,7 +76,7 @@ def test_candidate_engine_benchmark_uses_qlib_feasibility_status(tmp_path) -> No
         evidence_path,
     )
 
-    result = benchmark.benchmark_candidate_engines(evidence_path=evidence_path, report_path=report_path)
+    result = benchmark.benchmark_candidate_engines(evidence_path=evidence_path, panel_path=panel_path, report_path=report_path)
     qlib_row = next(row for row in result["rows"] if row["engine"] == "qlib")
 
     assert qlib_row["status"] == "blocked_by_panel_data"

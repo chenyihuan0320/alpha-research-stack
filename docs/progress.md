@@ -4,6 +4,38 @@
 
 本次完成：
 
+- 完成 Verified Daily Bar Panel Builder：新增 `orchestrator/panels/daily_bar_panel.py` 和 `scripts/build_verified_daily_bar_panel.py`。
+- 定义 `DailyBarPanelRow` 与 `DailyBarPanelBuildResult`，保留 `provider_evidence_id`、provider、`cross_source_status`、`quality_flags`、复权口径和 `source_updated_at`。
+- 生成目标为 `outputs/panels/cn_daily_bar_panel.csv` 与 `outputs/reports/verified_daily_bar_panel.md`；summary-only ProviderEvidence 不会被伪造成 panel。
+- 更新 Qlib feasibility：如果 `outputs/panels/cn_daily_bar_panel.csv` 存在且满足多 ticker、多日期和 OHLCV 最小字段，则 `qlib_runtime_ready=yes`；否则保持 partial / blocked。
+- 更新 Candidate Engine Benchmark：Qlib 状态可随 panel 从 `blocked_by_panel_data` 推进到 `ready_for_runtime_validation`，但仍不运行 Qlib。
+- 更新数据契约、架构和 reuse decision，明确 ProviderEvidence 是准入账本，DailyBarPanel 才是 Qlib/vectorbt 的 dataset 输入。
+- 新增测试覆盖 summary-only 阻断、mock full daily_bars 生成 panel、valuation/fundamentals 拒绝、panel 溯源字段、Qlib feasibility 和 benchmark 随 panel 状态更新。
+
+本次未做：
+
+- 未安装 Qlib。
+- 未运行 Qlib。
+- 未训练模型。
+- 未生成 CandidateEvidence。
+- 未生成股票推荐。
+- 未生成 final signal。
+- 未生成 confidence。
+- 未接 LLM。
+- 未自动交易。
+- 未提交任何 token、API key 或真实凭证。
+- 未用 summary evidence 伪造 daily_bars。
+
+下一步：
+
+- 如果 panel 已满足最小字段和多日期要求，做 Qlib minimal runtime read validation，仍不训练模型。
+- 或先使用 DailyBarPanel 做 vectorbt event validation baseline。
+- valuation / fundamentals 仍需等待 Tushare 权限、限频窗口释放或替代数据源，不得混入 price-only panel。
+
+## 2026-07-04
+
+本次完成：
+
 - 完成 Qlib data format feasibility：新增 `orchestrator/adapters/qlib_adapter.py` 和 `scripts/check_qlib_data_feasibility.py`。
 - 明确 Qlib 最小 daily_bar 字段需求：`date`、`ticker`、`open`、`high`、`low`、`close`、`volume`；可选字段包括 `amount`、`factor`、`vwap`、`turnover`、`adj_factor`、`industry`、`market_cap`、`label`。
 - 生成 `outputs/reports/qlib_data_feasibility.md`：当前 `feasibility_status=partial`，`qlib_runtime_ready=no`，eligible CN daily_bar evidence 为 3 条。

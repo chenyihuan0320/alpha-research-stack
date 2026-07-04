@@ -15,9 +15,14 @@ from orchestrator.candidates.engine import compare_candidate_engines  # noqa: E4
 from orchestrator.candidates.engine_registry import get_candidate_engine  # noqa: E402
 from orchestrator.evidence.ledger import load_evidence  # noqa: E402
 from orchestrator.adapters.qlib_adapter import evaluate_qlib_data_format_feasibility  # noqa: E402
+from orchestrator.panels.daily_bar_panel import (  # noqa: E402
+    REQUIRED_PANEL_FIELDS,
+    load_daily_bar_panel_csv,
+)
 
 
 EVIDENCE_PATH = Path("outputs/evidence/provider_evidence.jsonl")
+PANEL_PATH = Path("outputs/panels/cn_daily_bar_panel.csv")
 REPORT_PATH = Path("outputs/reports/candidate_engine_benchmark.md")
 BENCHMARK_ENGINE_NAMES = ["alphasift", "qlib", "vectorbt_event_baseline"]
 
@@ -31,7 +36,26 @@ def _supported_inputs(engine_name: str) -> str:
     return ", ".join(engine.required_inputs)
 
 
-def _qlib_status_and_blocker(allowed_rows: list[Any]) -> tuple[str, str, str]:
+def _panel_is_qlib_ready(panel_path: str | Path) -> bool:
+    panel_rows = load_daily_bar_panel_csv(panel_path)
+    if not panel_rows:
+        return False
+    if len({row.ticker for row in panel_rows}) < 2 or len({row.date for row in panel_rows}) < 2:
+        return False
+    for row in panel_rows:
+        payload = row.to_dict()
+        if any(payload.get(field) in (None, "") for field in REQUIRED_PANEL_FIELDS):
+            return False
+    return True
+
+
+def _qlib_status_and_blocker(allowed_rows: list[Any], panel_path: str | Path) -> tuple[str, str, str]:
+    if _panel_is_qlib_ready(panel_path):
+        return (
+            "ready_for_runtime_validation",
+            "Qlib-compatible daily_bar panel fields are present; runtime still not executed.",
+            "Run Qlib minimal runtime validation without model training.",
+        )
     feasibility = evaluate_qlib_data_format_feasibility(allowed_rows)
     if feasibility.status == "feasible":
         return (
@@ -91,6 +115,7 @@ def _write_report(result: dict[str, Any], report_path: Path) -> None:
 def benchmark_candidate_engines(
     *,
     evidence_path: str | Path = EVIDENCE_PATH,
+    panel_path: str | Path = PANEL_PATH,
     report_path: str | Path = REPORT_PATH,
 ) -> dict[str, Any]:
     evidence_rows = load_evidence(evidence_path)
@@ -106,7 +131,7 @@ def benchmark_candidate_engines(
         blocker = engine.current_blocker
         next_action = readiness.next_action
         if engine.engine_name == "qlib":
-            status, blocker, next_action = _qlib_status_and_blocker(allowed_rows)
+            status, blocker, next_action = _qlib_status_and_blocker(allowed_rows, panel_path)
         rows.append(
             {
                 "engine": engine.engine_name,
